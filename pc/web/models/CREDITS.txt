@@ -1,0 +1,23 @@
+3D ANATOMY MODELS — ATTRIBUTION & LICENSE
+=========================================
+
+The files in this folder (skin.glb, skeleton.glb) are derived from:
+
+  • "BodyParts3D" — The Database Center for Life Science (DBCLS)
+      Original model by Kousaku Okubo.  CC BY-SA 2.1 Japan.
+      https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+  • "Z-Anatomy — the libre 3D atlas of anatomy"
+      Design/3D/anatomy by Gauthier Kervyn.  CC BY-SA 4.0.
+
+They were obtained (as GLB) from the open repository
+"3d-human-body-anatomy" (github.com/SeemaBansal1/3d-human-body-anatomy).
+
+LICENSE: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+         https://creativecommons.org/licenses/by-sa/4.0/
+
+Under CC BY-SA 4.0 you MAY reuse and adapt these models, provided you (1) give
+attribution as above, and (2) distribute any derivative under the SAME license.
+Accordingly, this 3D-model portion of SGP CSI WIFI is distributed under
+CC BY-SA 4.0.  (The rest of the SGP CSI WIFI code is the project's own.)
+
+Rendering uses three.js (MIT). Mesh decompression uses Google Draco (Apache-2.0).

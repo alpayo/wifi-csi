@@ -1,0 +1,13 @@
+data_root: data/raw
+processed_path: data/processed/
+
+fs: 60.0
+bp_low: 0.10
+bp_high: 0.50
+
+win_len: 500
+stride: 250
+
+seed: 42
+test_size: 0.15
+val_size: 0.15

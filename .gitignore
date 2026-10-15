@@ -1,0 +1,20 @@
+# Python
+pc/.venv/
+.venv/
+__pycache__/
+*.pyc
+
+# AI training artifacts (ship in rules mode; train locally)
+pc/ai/model.pt
+pc/ai/data/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Node / build
+node_modules/
+out/
+
+# Local captures
+*.log

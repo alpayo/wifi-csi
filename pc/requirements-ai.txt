@@ -1,0 +1,3 @@
+# Optional AI stage (neural CSI classifier). Heavy (~200 MB). The app works
+# without it (rules mode). Install:  pip install -r requirements-ai.txt
+torch>=2.0

@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SGP CSI WIFI</title>
+<style>
+:root{--ac:#39ff9e;--ac2:#27d1ff;--amber:#ffb43a;--bad:#ff4d4d;
+--gray:#c0c0c0;--navy:#00007b;--mono:ui-monospace,'SF Mono',Menlo,'Roboto Mono',monospace;
+--win:'Tahoma','MS Sans Serif','Segoe UI',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0a1410;font-family:var(--win);font-size:12px;
+color:#000;-webkit-font-smoothing:none;cursor:default;user-select:none}
+#c{position:fixed;inset:0;z-index:0}
+/* subtle scanlines over the 3D only */
+#fx{position:fixed;inset:24px 0 24px 0;pointer-events:none;z-index:1;
+background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.10) 2px 3px)}
+/* ── win95 bevels ── */
+.raised{background:var(--gray);box-shadow:inset -1px -1px #000,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.sunken{box-shadow:inset 1px 1px #808080,inset -1px -1px #fff,inset 2px 2px #000,inset -2px -2px #dfdfdf}
+/* ── title + menu bar (top) ── */
+#bar{position:fixed;top:0;left:0;right:0;z-index:20;padding:3px 3px 0}
+.tb{display:flex;align-items:center;gap:6px;height:22px;padding:0 3px;color:#fff;
+background:linear-gradient(90deg,var(--navy),#1082d4)}
+.tb .ico{width:14px;height:14px;background:#0a1a12;box-shadow:inset 0 0 0 1px #39ff9e;position:relative}
+.tb .ico:after{content:"";position:absolute;inset:4px;background:var(--ac);border-radius:50%}
+.tb .ttl{font-weight:700;font-size:12px;letter-spacing:.02em;flex:1;cursor:pointer}
+#brandLink{color:#39ff9e;text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.03em;margin-right:8px;text-shadow:0 0 6px #39ff9e55}
+#brandLink:hover{color:#8bffce;text-decoration:underline}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:inset 0 0 0 1px #0006}
+.dot.on{background:var(--ac);box-shadow:0 0 6px var(--ac)}
+.tbtn{width:19px;height:17px;font-size:11px;line-height:9px;color:#000;display:grid;place-items:center;font-family:var(--win);font-weight:700}
+.tbtn:active{box-shadow:inset 1px 1px #000,inset -1px -1px #fff,inset 2px 2px #808080}
+#menu{display:flex;height:21px;align-items:center;gap:0;padding:1px 2px;border-top:1px solid #dfdfdf}
+#menu span{padding:2px 9px;cursor:pointer}
+#menu span:hover{background:var(--navy);color:#fff}
+#menu u{text-decoration:underline}
+.menupop{position:fixed;z-index:40;background:var(--gray);padding:2px;display:none}
+.menupop .mi{padding:4px 24px 4px 24px;cursor:pointer;position:relative;white-space:nowrap}
+.menupop .mi:hover{background:var(--navy);color:#fff}
+.menupop .mi.sel:before{content:"\2713";position:absolute;left:7px}
+.menupop hr{border:none;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:2px 2px}
+.menupop .hd{padding:2px 10px;color:#4a4a4a;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+/* ── child windows ── */
+.win{position:fixed;z-index:10;padding:2px}
+.win .wtb{display:flex;align-items:center;height:19px;padding:0 2px 0 5px;color:#fff;font-weight:700;font-size:11px;
+background:linear-gradient(90deg,var(--navy),#1082d4)}
+.win .wtb .x{margin-left:auto;width:16px;height:15px;font-size:10px}
+.crt{background:#050b08;color:var(--ac);font-family:var(--mono);margin:3px;padding:9px 10px}
+#left{top:56px;left:8px;width:208px}
+#right{top:56px;right:8px;width:224px}
+#bottom{left:50%;transform:translateX(-50%);bottom:34px;width:min(440px,42vw)}
+#settings{bottom:34px;left:8px;width:246px}
+#nets{top:340px;right:8px;width:306px}
+#nodeWin{top:56px;left:50%;transform:translateX(-50%);width:300px;z-index:26}
+.noderow{display:flex;gap:4px;margin:5px 0}
+.noderow input{flex:1;min-width:0;background:#02110a;border:1px solid #16402c;color:var(--ac);font-family:var(--mono);font-size:11px;padding:3px 5px}
+.noderow button{font-family:var(--win);font-size:11px;padding:2px 9px;cursor:pointer}
+.noderow2{display:flex;align-items:center;gap:6px;padding:3px 2px;border-bottom:1px solid #0e2b1d;font-family:var(--mono);font-size:11px;color:var(--ac)}
+.nd-dot{width:8px;height:8px;border-radius:50%;background:#7a4a4a;flex:0 0 8px}
+.nd-dot.on{background:var(--ac);box-shadow:0 0 6px var(--ac)}
+.nd-xy{margin-left:auto;color:var(--amber)}
+.nd-rm{font-family:var(--win);font-size:11px;padding:0 7px;line-height:15px;cursor:pointer}
+#cam{top:300px;left:8px;width:242px}
+#camStage{position:relative;width:100%;background:#000;overflow:hidden;line-height:0}
+#camVid{display:block;width:100%;height:auto;transform:scaleX(-1)}
+#camOv{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
+#camFx{position:absolute;inset:0;pointer-events:none}
+#cam.cam-max{top:28px;left:8px;right:8px;bottom:28px;width:auto;z-index:28}
+#cam.cam-max .crt{height:calc(100% - 26px)}
+#cam.cam-max #camStage{width:100%;height:calc(100% - 60px)}
+#cam.cam-max #camVid{width:100%;height:100%;object-fit:contain}
+#cam:fullscreen{width:100vw;height:100vh}
+#cam:fullscreen .crt{height:calc(100vh - 24px)}
+#cam:fullscreen #camStage{width:100%;height:calc(100vh - 80px)}
+#cam:fullscreen #camVid{width:100%;height:100%;object-fit:contain}
+.lab{font-size:9px;letter-spacing:.14em;color:#4f8f6c;text-transform:uppercase}
+.big{font-size:30px;line-height:1.05;color:var(--ac);text-shadow:0 0 8px #39ff9e55;margin-top:1px}
+.big.sm{font-size:20px}.u{font-size:11px;color:#4f8f6c}
+.row{margin-bottom:11px}
+.bar{height:11px;margin-top:4px;background:#0a1a12}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac2),var(--ac));transition:width .2s}
+.kv{display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #1e3a2c}
+.kv .k{color:#4f8f6c}.kv .v{color:#bfead0}
+.vac{color:var(--ac)!important}.vam{color:var(--amber)!important}
+h4{font-size:9px;letter-spacing:.14em;color:#4f8f6c;text-transform:uppercase;margin:10px 0 5px}
+#wave{width:100%;height:60px;display:block;background:#030806;margin-top:4px}
+#mic{display:flex;gap:4px;margin-top:6px;align-items:flex-end;height:28px}
+#mic div{flex:1;background:#1e3a2c;transition:height .15s}
+#heat{width:100%;height:34px;display:block;background:#030806}
+/* ── status bar ── */
+#statusbar{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;gap:2px;padding:2px}
+.scell{font-size:11px;padding:2px 8px;color:#000;font-family:var(--win)}
+.scell.grow{flex:1}
+.scell b{font-family:var(--mono);color:#00007b}
+#demoBadge{font-size:9px;letter-spacing:.16em;color:#000;background:var(--amber);padding:2px 6px;font-weight:700;box-shadow:inset -1px -1px #806012,inset 1px 1px #ffe6a0}
+/* ── settings / anchors / spectrogram controls ── */
+.setrow{display:flex;align-items:center;gap:7px;margin:5px 0}
+.setrow label{flex:0 0 84px;font-size:9px;color:#4f8f6c;letter-spacing:.06em;text-transform:uppercase}
+.setrow input[type=range]{flex:1;min-width:0;height:14px;accent-color:#1082d4}
+.setrow .val{flex:0 0 52px;text-align:right;color:var(--ac);font-family:var(--mono);font-size:10px;white-space:nowrap}
+button.w95{font-family:var(--win);font-size:11px;padding:3px 10px;color:#000;cursor:pointer}
+button.w95:active{box-shadow:inset 1px 1px #000,inset -1px -1px #fff,inset 2px 2px #808080}
+select.w95{font-family:var(--win);font-size:11px;padding:1px 2px;color:#000}
+.aprow{display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 2px;border-bottom:1px dotted #1e3a2c}
+.aprow input[type=checkbox]{margin:0;accent-color:#1082d4}
+.aprow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#bfead0}
+.aprow .rs{flex:0 0 46px;text-align:right;color:var(--ac);font-family:var(--mono)}
+.aprow .ds{flex:0 0 40px;text-align:right;color:#6f8aa3;font-family:var(--mono)}
+.aprow .ibar{flex:0 0 30px;height:6px;background:#0a1a12}
+.aprow .ibar i{display:block;height:100%;background:var(--amber);width:0}
+.aprow .ang{flex:0 0 54px}
+.aprow .ang input{width:100%;height:12px;accent-color:#ffb43a}
+#specWrap{position:relative}
+#spec{width:100%;height:120px;display:block;background:#000;image-rendering:pixelated}
+#specAxis{position:absolute;left:2px;top:2px;font-size:9px;color:#7fd8a8;font-family:var(--mono);pointer-events:none;line-height:1.5}
+/* ── calibrating dialog ── */
+#banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:300px;padding:2px;display:none}
+#banner .wtb{background:linear-gradient(90deg,var(--navy),#1082d4);color:#fff;font-weight:700;font-size:11px;padding:2px 5px}
+#banner .bd{padding:16px 14px;text-align:center;font-size:12px;color:#000}
+#banner .bd b{color:#7a0000}
+.blink{animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:.35}}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<div id="fx"></div>
+
+<!-- title + menu bar -->
+<div id="bar" class="raised">
+  <div class="tb">
+    <span class="ico"></span>
+    <span class="ttl" id="logo" title="">SGP CSI WIFI — WiFi-CSI Sensor</span>
+    <span id="demoBadge" style="display:none">DEMO</span>
+    <a href="https://www.sgpstore.net" target="_blank" rel="noopener" id="brandLink">www.sgpstore.net</a>
+    <span class="dot" id="link" style="margin:0 6px"></span>
+    <span class="tbtn raised">_</span><span class="tbtn raised">&#9723;</span><span class="tbtn raised">&#10005;</span>
+  </div>
+  <div id="menu">
+    <span><u>F</u>ile</span><span id="mnuView"><u>V</u>iew</span><span id="mnuRoom"><u>R</u>oom</span><span id="mnuNode"><u>N</u>odes</span><span id="mnuCam"><u>C</u>amera</span><span id="mnuDemo"><u>D</u>emo</span><span id="mnuHelp"><u>H</u>elp</span>
+  </div>
+</div>
+<div id="roomPop" class="menupop raised">
+  <div class="hd">Add furniture</div>
+  <div class="mi" data-f="sofa">Sofa</div><div class="mi" data-f="bed">Bed</div>
+  <div class="mi" data-f="table">Dining table</div><div class="mi" data-f="desk">Desk</div>
+  <div class="mi" data-f="chair">Chair</div><div class="mi" data-f="tv">TV + stand</div>
+  <div class="mi" data-f="wardrobe">Wardrobe</div><div class="mi" data-f="plant">Plant</div>
+  <div class="mi" data-f="wall">Wall (3 m)</div><div class="mi" data-f="door">Door</div>
+  <hr><div class="hd">drag to move · double-click rotate · right-click delete</div>
+  <div class="mi" data-f="__clear">Clear room</div>
+</div>
+<div id="viewPop" class="menupop raised">
+  <div class="hd">Body model</div>
+  <div class="mi" data-fig="anatomy">3D Anatomy (skin + bones)</div>
+  <div class="mi" data-fig="skeleton">Skeleton only</div>
+  <div class="mi" data-fig="xray">X-Ray (simple)</div>
+  <div class="mi" data-fig="mannequin">Mannequin</div>
+  <div class="mi" data-fig="marker">Marker</div>
+  <hr><div class="hd" id="anatStat">3D model: loading…</div>
+  <div class="mi" data-fig="__reload">↻ Reload 3D model</div>
+</div>
+
+<!-- NODES window (multi-card mode) -->
+<div id="nodeWin" class="win raised" style="display:none">
+  <div class="wtb">Cards &nbsp;·&nbsp; multi-node localizer <span class="x tbtn raised" id="nodeClose" style="color:#000;margin-left:auto">_</span></div>
+  <div class="crt sunken">
+    <div class="noderow2" style="border:none;gap:7px;padding-bottom:2px">
+      <span class="nd-dot" id="discDot"></span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ac)">
+        <input type="checkbox" id="discChk" checked> Auto-detect cards
+      </label>
+      <span class="nd-xy" id="discStat" style="color:#7fd8a8">—</span>
+    </div>
+    <div id="nodeList" style="margin-top:2px"></div>
+    <hr style="border:none;border-top:1px solid #16402c;margin:7px 0 5px">
+    <div class="lab">Add manually (if auto-detect can't reach it)</div>
+    <div class="noderow">
+      <input id="ndName" placeholder="name (auto)" maxlength="12">
+      <input id="ndIp" placeholder="192.168.4.1">
+      <button id="ndAdd" class="raised">Add</button>
+    </div>
+    <div class="lab" style="margin-top:7px;letter-spacing:.03em;line-height:1.5">
+      cards on the same Wi-Fi appear here by themselves · drag each one on the
+      floor to where it really is · <b>≥3 placed cards that see the person →
+      exact (x,y) trilateration</b>.
+    </div>
+  </div>
+</div>
+
+<!-- SENSOR window -->
+<div id="left" class="win raised">
+  <div class="wtb">Sensor <span class="x tbtn raised" style="color:#000">_</span></div>
+  <div class="crt sunken">
+    <div class="row"><div class="lab">Presence</div><div class="big" id="mPres">—</div></div>
+    <div class="row"><div class="lab">Motion</div><div class="bar sunken"><i id="mMot"></i></div></div>
+    <div class="row"><div class="lab">Distance to subject</div><div class="big sm"><span id="mRng">—</span> <span class="u">m</span></div>
+      <div class="lab" id="mRngHint" style="letter-spacing:.06em;margin-top:2px">estimate · widen with more nodes</div></div>
+    <div class="row"><div class="lab">Link RSSI</div><div class="big sm"><span id="mRssi">—</span> <span class="u">dBm</span></div></div>
+    <div class="row" style="margin:0"><div class="lab">Activity · AI <span id="mAiSrc" style="color:#2c4639">—</span></div>
+      <div class="big sm" id="mAct">—</div>
+      <div id="aiBars" style="display:flex;gap:3px;margin-top:5px;height:22px;align-items:flex-end"></div></div>
+  </div>
+</div>
+
+<!-- VITALS window -->
+<div id="right" class="win raised">
+  <div class="wtb">Respiration / Vitals <span class="x tbtn raised" style="color:#000">_</span></div>
+  <div class="crt sunken">
+    <div class="row"><div class="lab">Breathing rate</div><div class="big sm"><span id="mBpm">—</span> <span class="u">bpm</span></div></div>
+    <canvas id="wave" width="224" height="60"></canvas>
+    <div class="kv"><span class="k">Breathing conf.</span><span class="v" id="mBconf">—</span></div>
+    <div class="kv"><span class="k">CSI rate</span><span class="v" id="mFs">—</span></div>
+    <div class="kv"><span class="k">Subcarriers</span><span class="v" id="mNa">—</span></div>
+    <div class="kv"><span class="k">Calibration</span><span class="v" id="mCal">—</span></div>
+    <h4>Acoustic</h4>
+    <div id="mic"><div></div><div></div><div></div></div>
+    <div class="lab" style="letter-spacing:.06em;margin-top:5px">low · mid · high band</div>
+  </div>
+</div>
+
+<!-- SPECTROGRAM window -->
+<div id="bottom" class="win raised">
+  <div class="wtb">Spectrogram · CSI micro-Doppler
+    <select class="w95" id="cmap" style="margin-left:8px">
+      <option value="turbo">Turbo</option><option value="inferno">Inferno</option>
+      <option value="viridis">Viridis</option><option value="jet">Jet</option>
+      <option value="ice">Ice</option><option value="gray">Grayscale</option>
+    </select>
+    <span class="x tbtn raised" style="color:#000;margin-left:auto">_</span></div>
+  <div class="crt sunken" style="padding:4px">
+    <div id="specWrap"><canvas id="spec" width="620" height="120"></canvas>
+      <div id="specAxis">5Hz<br><br>2.5<br><br>0</div></div>
+  </div>
+</div>
+
+<!-- CAMERA / pose-fusion window -->
+<div id="cam" class="win raised" style="display:none">
+  <div class="wtb" id="camTb">Camera · pose fusion
+    <select class="w95" id="camFilter" title="image filter" style="margin-left:8px">
+      <option value="none">No filter</option>
+      <option value="night">Night vision</option>
+      <option value="thermal">Thermal</option>
+      <option value="ir">Infrared</option>
+      <option value="low">Low-light amp</option>
+      <option value="mono">Grayscale</option>
+      <option value="hc">High contrast</option>
+      <option value="edge">Edge glow</option>
+    </select>
+    <span class="x tbtn raised" id="camFull" title="fullscreen" style="color:#000">&#9974;</span>
+    <span class="x tbtn raised" id="camMax" title="maximize" style="color:#000">&#9723;</span>
+    <span class="x tbtn raised" style="color:#000" onclick="toggleCam(false)">&#10005;</span>
+  </div>
+  <div class="crt sunken" style="padding:4px">
+    <div id="camStage">
+      <video id="camVid" autoplay playsinline muted></video>
+      <canvas id="camOv" width="320" height="240"></canvas>
+      <div id="camFx"></div>
+    </div>
+    <div class="kv"><span class="k">Source</span><span class="v" id="camStat">off</span></div>
+    <div class="kv"><span class="k">Tracking</span><span class="v" id="camTrack">—</span></div>
+    <div class="hint" style="font-size:9px">Webcam drives the live skeleton; behind a wall WiFi-CSI keeps the position. Filter dropdown + maximize/fullscreen above (or double-click the title bar).</div>
+  </div>
+</div>
+
+<!-- SETTINGS window -->
+<div id="settings" class="win raised">
+  <div class="wtb">Settings <span class="x tbtn raised" style="color:#000">_</span></div>
+  <div class="crt sunken">
+    <div class="setrow"><label>TX power</label><input type="range" id="sTx" min="8" max="84" step="2"><span class="val" id="vTx">—</span></div>
+    <div class="setrow"><label>Ping rate</label><input type="range" id="sPing" min="20" max="2000" step="20"><span class="val" id="vPing">—</span></div>
+    <div class="setrow"><label>Presence sens.</label><input type="range" id="sSens" min="1" max="3.2" step="0.1"><span class="val" id="vSens">—</span></div>
+    <div class="setrow"><label>Motion sens.</label><input type="range" id="sMotS" min="1" max="50" step="0.5"><span class="val" id="vMotS">—</span></div>
+    <div class="setrow"><label>Motion gain</label><input type="range" id="sMot" min="2" max="14" step="0.5"><span class="val" id="vMot">—</span></div>
+    <div class="setrow"><label>Smoothing</label><input type="range" id="sSm" min="0.1" max="0.92" step="0.02"><span class="val" id="vSm">—</span></div>
+    <div class="setrow"><label>Range cal.</label><input type="range" id="sCal" min="-2" max="2" step="0.1"><span class="val" id="vCal">—</span></div>
+    <div class="setrow"><label>2-Meter mode</label>
+      <input type="checkbox" id="sLos" style="accent-color:#1082d4;flex:0 0 auto">
+      <span style="flex:1;font-size:9px;color:#4f8f6c;letter-spacing:.04em">device↔computer, you in between</span>
+      <input type="number" id="sLosD" min="0.5" max="6" step="0.1" value="2" style="width:42px;background:#02110a;border:1px solid #16402c;color:var(--ac);font-family:var(--mono);font-size:10px;text-align:right">
+      <span class="val" style="flex:0 0 14px">m</span></div>
+    <div class="row" style="margin-top:8px;gap:6px">
+      <button class="w95 raised" id="btnTurbo" title="single-device high-rate + max sensitivity">⚡ Turbo</button>
+      <button class="w95 raised" onclick="wsSend({type:'recal'})">Recalibrate</button>
+      <label style="font-size:10px;color:#4f8f6c;display:flex;align-items:center;gap:4px"><input type="checkbox" id="sAnch" checked style="accent-color:#1082d4"> use WiFi anchors</label></div>
+  </div>
+</div>
+
+<!-- WiFi NETWORKS / ANCHORS window (live RSSI + place on the plane) -->
+<div id="nets" class="win raised">
+  <div class="wtb">WiFi Networks &nbsp;·&nbsp; anchors for triangulation <span class="x tbtn raised" style="color:#000;margin-left:auto">_</span></div>
+  <div class="crt sunken" style="max-height:230px;overflow-y:auto">
+    <div class="aprow" style="color:#4f8f6c;border-bottom:1px solid #1e3a2c;font-size:9px;letter-spacing:.06em">
+      <span style="flex:0 0 14px"></span><span class="nm">SSID</span><span class="rs">RSSI</span><span class="ds">dist</span><span class="ibar" style="background:none">intf</span><span class="ang">angle</span></div>
+    <div id="apList"><div class="empty" style="color:#2c4639;padding:14px;text-align:center">scanning…</div></div>
+  </div>
+</div>
+
+<!-- status bar -->
+<div id="statusbar" class="raised">
+  <span class="scell sunken grow" id="status">— no data —</span>
+  <span class="scell sunken"><b>WiFi CSI</b></span>
+  <span class="scell sunken">ch 6</span>
+  <span class="scell sunken">SGP CARD MINI</span>
+</div>
+
+<!-- calibrating dialog -->
+<div id="banner" class="raised">
+  <div class="wtb">Calibrating…</div>
+  <div class="bd"><b class="blink">SAMPLING AMBIENT CHANNEL</b><br><br>Hold still or leave the area for a few seconds while the empty-room baseline is measured.</div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script src="lib/DRACOLoader.js"></script>
+<script>
+// ───────── three.js tactical scene ─────────
+const BG=0x04070a, AC=0x39ff9e, AC2=0x27d1ff, AMBER=0xffb43a, RED=0xff4d4d;
+let FIG_FRONT=0;   // orientation offset so the body's front faces the camera (0 or Math.PI)
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(BG,0.045);
+const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,200);
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setClearColor(BG,1);
+
+// grid floor (tactical)
+const grid=new THREE.GridHelper(16,32,AC,0x0e3322);
+grid.material.opacity=0.35;grid.material.transparent=true;scene.add(grid);
+const grid2=new THREE.GridHelper(16,8,0x155a3a,0x0e3322);grid2.material.opacity=.5;grid2.material.transparent=true;scene.add(grid2);
+
+// ambient + key light
+scene.add(new THREE.AmbientLight(0x224433,0.8));
+const pl=new THREE.PointLight(AC,0.6,30);pl.position.set(0,6,0);scene.add(pl);
+
+// node (the SGP Card Mini) at origin
+const node=new THREE.Group();
+const body=new THREE.Mesh(new THREE.BoxGeometry(.55,.12,.85),new THREE.MeshStandardMaterial({color:0x0a1a12,emissive:AC,emissiveIntensity:.25,metalness:.6,roughness:.3}));
+body.position.y=.06;node.add(body);
+const beacon=new THREE.Mesh(new THREE.SphereGeometry(.06,16,16),new THREE.MeshBasicMaterial({color:AC}));
+beacon.position.y=.18;node.add(beacon);
+scene.add(node);
+
+// range rings on the floor
+const rings=[];
+for(let r=1;r<=5;r++){
+  const g=new THREE.RingGeometry(r-0.015,r+0.015,96);
+  const ring=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x1a6b47,side:THREE.DoubleSide,transparent:true,opacity:.45}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=0.01;scene.add(ring);rings.push(ring);
+}
+// boresight sweep cone
+const sweep=new THREE.Mesh(new THREE.ConeGeometry(2.6,5,40,1,true),
+  new THREE.MeshBasicMaterial({color:AC2,transparent:true,opacity:.06,side:THREE.DoubleSide}));
+sweep.rotation.z=-Math.PI/2;sweep.position.set(2.5,0.4,0);scene.add(sweep);
+
+// wall the device faces (reference plane)
+const wall=new THREE.Mesh(new THREE.PlaneGeometry(10,4),new THREE.MeshBasicMaterial({color:0x0a2a1c,transparent:true,opacity:.18,side:THREE.DoubleSide}));
+wall.position.set(5,2,0);wall.rotation.y=Math.PI/2;scene.add(wall);
+const wallGrid=new THREE.GridHelper(10,20,0x11402b,0x0c2e1f);wallGrid.rotation.z=Math.PI/2;wallGrid.position.set(5,2,0);wallGrid.material.transparent=true;wallGrid.material.opacity=.3;scene.add(wallGrid);
+
+// ───────── selectable body figure (original anatomy geometry) ─────────
+function fmat(color,opacity,add){return new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:opacity,side:THREE.DoubleSide,depthWrite:false,blending:add?THREE.AdditiveBlending:THREE.NormalBlending});}
+function fcyl(a,b,h,m){return new THREE.Mesh(new THREE.CylinderGeometry(a,b,h,14),m);}
+function fsph(r,m){return new THREE.Mesh(new THREE.SphereGeometry(r,16,16),m);}
+function at(o,x,y,z){o.position.set(x,y,z);return o;}
+function buildHumanoid(bodyMat,skel){
+  const g=new THREE.Group(), chest=new THREE.Group();
+  // torso / pelvis
+  const up=fcyl(.16,.17,.34,bodyMat); up.position.y=1.28; chest.add(up);
+  const sh=fsph(.2,bodyMat); sh.scale.set(1.35,.55,.8); sh.position.y=1.43; chest.add(sh);
+  g.add(chest);
+  const ab=fcyl(.15,.13,.26,bodyMat); ab.position.y=1.0; g.add(ab);
+  const pel=fsph(.16,bodyMat); pel.scale.set(1.25,.8,.9); pel.position.y=.86; g.add(pel);
+  // neck + head
+  const nk=fcyl(.05,.06,.1,bodyMat); nk.position.y=1.5; g.add(nk);
+  const hd=fsph(.12,bodyMat); hd.scale.set(1,1.22,1.08); hd.position.y=1.64; g.add(hd);
+  // arms (A-pose, angled out)
+  for(const s of [-1,1]){
+    const arm=new THREE.Group(); arm.position.set(s*.2,1.43,0); arm.rotation.z=s*0.3;
+    arm.add(at(fcyl(.05,.045,.3,bodyMat),0,-.17,0));
+    arm.add(at(fcyl(.042,.035,.3,bodyMat),0,-.47,0));
+    arm.add(at(fsph(.05,bodyMat),0,-.64,0));
+    if(skel) arm.add(at(fcyl(.014,.011,.62,skel),0,-.33,0));
+    g.add(arm);
+  }
+  // legs
+  for(const s of [-1,1]){
+    const leg=new THREE.Group(); leg.position.set(s*.09,.86,0);
+    leg.add(at(fcyl(.08,.06,.44,bodyMat),0,-.24,0));
+    leg.add(at(fcyl(.055,.04,.44,bodyMat),0,-.68,0));
+    const ft=fsph(.06,bodyMat); ft.scale.set(1,.5,1.7); ft.position.set(0,-.9,.05); leg.add(ft);
+    if(skel) leg.add(at(fcyl(.02,.014,.9,skel),0,-.45,0));
+    g.add(leg);
+  }
+  // skeleton inside the torso (spine, ribcage, skull, pelvis)
+  if(skel){
+    for(let i=0;i<10;i++){const v=fsph(.024,skel); v.position.set(0,.9+i*.064,-.02); g.add(v);}
+    for(let i=0;i<5;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.145-i*.008,.011,6,16,Math.PI*1.25),skel); r.position.set(0,1.17+i*.056,0); r.rotation.x=Math.PI/2; r.rotation.z=-Math.PI*0.62; g.add(r);}
+    const sk=fsph(.092,skel); sk.position.y=1.64; g.add(sk);
+    const pb=new THREE.Mesh(new THREE.TorusGeometry(.1,.02,8,16),skel); pb.position.y=.84; pb.rotation.x=Math.PI/2; g.add(pb);
+  }
+  g.userData.chest=chest; return g;
+}
+function buildFigure(type){
+  if(type==='marker'){
+    const g=new THREE.Group();
+    const m1=new THREE.MeshStandardMaterial({color:0x0b2a1c,emissive:AC,emissiveIntensity:.9,transparent:true,opacity:.9});
+    const t=fcyl(.2,.26,.95,m1); t.position.y=1.0; g.add(t);
+    const m2=new THREE.MeshStandardMaterial({color:0x0b2a1c,emissive:AC,emissiveIntensity:.9});
+    const h=fsph(.17,m2); h.position.y=1.62; g.add(h);
+    g.userData.chest=t; g.userData.body=[m1,m2]; g.userData.emissive=true; return g;
+  }
+  if(type==='mannequin'){
+    const bm=new THREE.MeshStandardMaterial({color:0x0b2a1c,emissive:AC,emissiveIntensity:.7,transparent:true,opacity:.85,side:THREE.DoubleSide});
+    const g=buildHumanoid(bm,null); g.userData.body=[bm]; g.userData.emissive=true; return g;
+  }
+  // X-Ray anatomy (default): translucent blue body + bright skeleton
+  const bm=fmat(0x2a86ff,.17,true);
+  const skel=new THREE.MeshBasicMaterial({color:0xdfeeff,transparent:true,opacity:.85});
+  const g=buildHumanoid(bm,skel); g.userData.body=[bm]; g.userData.skel=skel; g.userData.emissive=false; return g;
+}
+let figure=null, figureType='anatomy';
+try{figureType=localStorage.getItem('sgpFigure')||'anatomy';}catch(e){}
+
+// ── real 3D anatomy model (skin + skeleton GLB), holographic X-ray material ──
+let anatGroup=null, anatSkin=null, anatSkel=null, anatReady=false, anatErr='';
+const skinU={uColor:{value:new THREE.Color(0x2a86ff)},uOpacity:{value:0.7},uPower:{value:1.7}};
+function xraySkinMat(){
+  // translucent shell: a solid base fill (always visible from any angle) + a
+  // brighter fresnel rim. NormalBlending so it reads as a real coloured body.
+  return new THREE.ShaderMaterial({uniforms:skinU,transparent:true,side:THREE.DoubleSide,depthWrite:false,blending:THREE.NormalBlending,
+    vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vec4 wp=modelViewMatrix*vec4(position,1.0);vN=normalize(normalMatrix*normal);vV=normalize(-wp.xyz);gl_Position=projectionMatrix*wp;}',
+    fragmentShader:'uniform vec3 uColor;uniform float uOpacity;uniform float uPower;varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),uPower);vec3 col=uColor*(0.55+f*0.75);float a=(0.34+0.5*f)*uOpacity;gl_FragColor=vec4(col,a);}'});
+}
+function anatStatTxt(){var st=document.getElementById('anatStat');
+  if(st)st.textContent='3D model: '+(anatReady?'ready ✓':(anatErr?('failed ('+anatErr+')'):'loading…'));}
+function loadAnatomy(){
+  if(typeof THREE.GLTFLoader!=='function'){anatErr='no loader';anatStatTxt();return;}
+  const dl=new THREE.DRACOLoader(); dl.setDecoderPath('lib/draco/'); dl.setDecoderConfig({type:'wasm'});
+  const gl=new THREE.GLTFLoader(); gl.setDRACOLoader(dl);
+  const grp=new THREE.Group(); let pending=2;
+  const skelMat=new THREE.MeshStandardMaterial({color:0xe6edf5,emissive:0x24506e,emissiveIntensity:.35,roughness:.5,metalness:.1});
+  function done(){
+    let box=new THREE.Box3().setFromObject(grp), sz=box.getSize(new THREE.Vector3());
+    if(sz.z>sz.y*1.25){grp.rotation.x=-Math.PI/2; box=new THREE.Box3().setFromObject(grp); sz=box.getSize(new THREE.Vector3());}
+    grp.scale.setScalar(1.75/(sz.y||1));
+    box=new THREE.Box3().setFromObject(grp); const c=box.getCenter(new THREE.Vector3());
+    grp.position.x-=c.x; grp.position.z-=c.z; grp.position.y-=box.min.y;
+    grp.userData.anatomy=true; anatGroup=grp; anatReady=true;
+    if(figureType==='anatomy'||figureType==='skeleton') setFigure(figureType);
+    anatStatTxt();
+  }
+  function loadOne(url,onok,tries){
+    gl.load(url,onok,undefined,e=>{
+      if(tries>0){setTimeout(()=>loadOne(url,onok,tries-1),800);return;}
+      anatErr=(anatErr?anatErr+',':'')+url.split('/').pop();
+      anatStatTxt();
+      if(--pending<=0&&(anatSkin||anatSkel))done();
+    });
+  }
+  loadOne('models/skeleton.glb',g=>{g.scene.traverse(o=>{if(o.isMesh){o.material=skelMat;o.renderOrder=1;}});anatSkel=g.scene;grp.add(g.scene);if(--pending===0)done();},2);
+  loadOne('models/skin.glb',g=>{g.scene.traverse(o=>{if(o.isMesh){o.material=xraySkinMat();o.renderOrder=3;}});anatSkin=g.scene;grp.add(g.scene);if(--pending===0)done();},2);
+}
+function reloadAnatomy(){
+  if(anatGroup){person.remove(anatGroup);scene.remove(anatGroup);}
+  anatGroup=null;anatSkin=null;anatSkel=null;anatReady=false;anatErr='';
+  loadAnatomy();
+}
+
+// the detected person
+const person=new THREE.Group();person.visible=false;
+function setFigure(t){
+  figureType=t;try{localStorage.setItem('sgpFigure',t)}catch(e){}
+  if(figure){person.remove(figure);figure=null;}
+  if((t==='anatomy'||t==='skeleton')&&anatReady&&anatGroup){
+    figure=anatGroup; if(anatSkin)anatSkin.visible=(t==='anatomy'); person.add(anatGroup);
+  } else {
+    figure=buildFigure((t==='anatomy'||t==='skeleton')?'xray':t); person.add(figure); // procedural placeholder while GLB loads
+  }
+}
+loadAnatomy();
+// uncertainty ellipse on floor
+const unc=new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshBasicMaterial({color:AMBER,transparent:true,opacity:.14,side:THREE.DoubleSide}));
+unc.rotation.x=-Math.PI/2;unc.position.y=.02;person.add(unc);
+const uncRing=new THREE.Mesh(new THREE.RingGeometry(.97,1.0,48),new THREE.MeshBasicMaterial({color:AMBER,transparent:true,opacity:.6,side:THREE.DoubleSide}));
+uncRing.rotation.x=-Math.PI/2;uncRing.position.y=.021;person.add(uncRing);
+// vertical beam
+const beam=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,4,8),new THREE.MeshBasicMaterial({color:AC,transparent:true,opacity:.25}));
+beam.position.y=2;person.add(beam);
+setFigure(figureType);
+scene.add(person);
+
+// ───────── minimal orbit camera (no dependency) ─────────
+let az=-0.7, el=0.9, rad=9, tgt=new THREE.Vector3(2,0.6,0);
+function updCam(){cam.position.set(tgt.x+rad*Math.cos(el)*Math.cos(az),tgt.y+rad*Math.sin(el),tgt.z+rad*Math.cos(el)*Math.sin(az));cam.lookAt(tgt);}
+updCam();
+let drag=false,px=0,py=0;
+const cv=renderer.domElement;
+cv.addEventListener('mousedown',e=>{
+  if(e.button===0){
+    const nd=pickNode(e);                                // grabbing a card node?
+    if(nd){nodeDrag=nd;const p=floorPt(e);if(p)dragOff.set(nd.position.x-p.x,0,nd.position.z-p.z);return;}
+    const f=pickFurn(e);                                 // grabbing a piece of furniture?
+    if(f){furnDrag=f;const p=floorPt(e);if(p)dragOff.set(f.position.x-p.x,0,f.position.z-p.z);return;}}
+  if(e.button!==0)return;
+  drag=true;px=e.clientX;py=e.clientY});
+addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{if(!drag)return;az-=(e.clientX-px)*.008;el=Math.max(.15,Math.min(1.45,el+(e.clientY-py)*.006));px=e.clientX;py=e.clientY;updCam()});
+cv.addEventListener('wheel',e=>{rad=Math.max(3,Math.min(20,rad+e.deltaY*.01));updCam();e.preventDefault()},{passive:false});
+// touch
+cv.addEventListener('touchstart',e=>{drag=true;px=e.touches[0].clientX;py=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',()=>drag=false);
+addEventListener('touchmove',e=>{if(!drag)return;az-=(e.touches[0].clientX-px)*.01;el=Math.max(.15,Math.min(1.45,el+(e.touches[0].clientY-py)*.008));px=e.touches[0].clientX;py=e.touches[0].clientY;updCam()},{passive:true});
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+// ───────── websocket data ─────────
+let latest=null, waveHist=[], lastRx=0, WS=null;
+function connect(){
+  const ws=new WebSocket('ws://127.0.0.1:'+(location.port? (parseInt(location.port)+1):8800));
+  WS=ws;
+  ws.onopen=()=>{pushCfg();};
+  ws.onmessage=ev=>{latest=JSON.parse(ev.data);lastRx=performance.now();};
+  ws.onclose=()=>setTimeout(connect,1200);
+  ws.onerror=()=>ws.close();
+}
+function wsSend(o){try{if(WS&&WS.readyState===1)WS.send(JSON.stringify(o));}catch(e){}}
+connect();
+
+const $=id=>document.getElementById(id);
+// escape untrusted text (WiFi SSIDs come from the air — never inject them raw)
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const specCtx=$('spec').getContext('2d'), waveCtx=$('wave').getContext('2d');
+
+// ───────── hidden DEMO mode: tap the "SGP CSI WIFI" title 3x (also View>Demo) ─────────
+let demoMode=false, demoT0=0, tapN=0, tapLast=0;
+function toggleDemo(){demoMode=!demoMode;demoT0=performance.now();$('demoBadge').style.display=demoMode?'inline-block':'none';}
+$('logo').addEventListener('click',()=>{
+  const now=performance.now();
+  tapN=(now-tapLast<800)?tapN+1:1; tapLast=now;
+  if(tapN>=3){ tapN=0; toggleDemo(); }
+});
+$('mnuDemo').addEventListener('click',toggleDemo);
+
+// ───────── View menu: choose body model (anatomy) ─────────
+const viewPop=$('viewPop');
+function syncFig(){viewPop.querySelectorAll('.mi').forEach(d=>d.classList.toggle('sel',d.dataset.fig===figureType&&d.dataset.fig[0]!=='_'));
+  anatStatTxt();}
+$('mnuView').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();
+  viewPop.style.left=r.left+'px';viewPop.style.top=r.bottom+'px';
+  viewPop.style.display=(viewPop.style.display==='block')?'none':'block';syncFig();e.stopPropagation();});
+viewPop.querySelectorAll('.mi').forEach(d=>d.addEventListener('click',e=>{
+  if(d.dataset.fig==='__reload'){reloadAnatomy();syncFig();}
+  else{setFigure(d.dataset.fig);syncFig();viewPop.style.display='none';}
+  e.stopPropagation();}));
+addEventListener('click',()=>{viewPop.style.display='none';});
+// Help → attribution (CC BY-SA requires crediting the anatomy model)
+$('mnuHelp').addEventListener('click',e=>{e.stopPropagation();viewPop.style.display='none';
+  alert('SGP CSI WIFI — WiFi-CSI presence & 3D localizer for the SGP Card Mini.\n\n'+
+        '3D anatomy model: "BodyParts3D" (The Database Center for Life Science) and '+
+        '"Z-Anatomy" by Kousaku Okubo & Gauthier Kervyn — licensed CC BY-SA 4.0. '+
+        'This 3D-model portion is redistributed under the same CC BY-SA 4.0 license.\n\n'+
+        'Rendering: three.js (MIT). Mesh compression: Google Draco (Apache-2.0).');
+});
+function demoFrame(){
+  const t=(performance.now()-demoT0)/1000;
+  // a person walking a slow arc in front of the node, breathing ~14 bpm
+  const ang=0.5+0.5*Math.sin(t*0.18), rng=2.4+0.8*Math.sin(t*0.25);
+  const px=rng*Math.cos(ang), py=rng*Math.sin(ang);
+  const breath=Math.sin(2*Math.PI*0.23*t);
+  const motion=0.25+0.2*Math.abs(Math.sin(t*0.6))+(Math.sin(t*2.3)>0.9?0.4:0);
+  const presence=0.82+0.12*Math.sin(t*0.4);
+  const resp=[]; const peak=24+14*Math.sin(t*0.3);
+  for(let i=0;i<52;i++){const d=Math.abs(i-peak); resp.push(Math.max(0,(1-d/18))*(0.5+0.5*Math.abs(breath))+0.05*Math.random());}
+  // spectrogram slice: breathing band (~0.23 Hz) + motion bursts
+  const spec=[];for(let i=0;i<64;i++){const f=i/63*5;
+    let v=0.08+0.05*Math.random()+0.9*Math.exp(-Math.pow((f-0.23)/0.08,2))*(0.6+0.4*Math.abs(breath))
+      +0.5*Math.exp(-Math.pow((f-0.46)/0.07,2))*0.5+ (motion>0.5?0.6*Math.exp(-Math.pow((f-1.6)/0.6,2)):0);
+    spec.push(Math.min(1,v));}
+  const DA=[['MOVISTAR_A4F2','3c:84:6a:11:22:33',-48,0.4,1],['Vodafone-7721','a0:bb:3e:44:55:66',-61,1.9,5],
+            ['O2-WiFi-2G','e8:de:27:77:88:99',-70,3.4,2],['MiFibra-3B1C','10:2c:6b:aa:bb:cc',-75,4.6,6]];
+  const aps=DA.map(d=>{const r=d[2]+Math.round(Math.sin(t*1.3+d[3])*d[4]*0.6);
+    return {ssid:d[0],bssid:d[1],ch:6,rssi:r,dist:+Math.pow(10,(-40-r)/26).toFixed(2),
+      interf:Math.min(1,Math.abs(Math.sin(t*0.9+d[3]))*d[4]/6),sel:d[4]>3,angle:d[3],age:0.4};});
+  return {nodes:[{name:'DEMO',pos:[0,0,0],online:true,fs:95,presence:presence,motion:Math.min(1,motion),rangeM:rng,
+    bpm:13.8+Math.sin(t*0.5),bpmConf:0.92,rssi:-52+Math.round(3*Math.sin(t)),calibrated:true,nActive:52,
+    mic:[0,Math.round(120+180*Math.abs(breath)),Math.round(80+120*Math.abs(breath)),40],resp:resp,
+    spec:spec,aps:aps,ai:(()=>{const cl=['empty','still','walking','fast','fall'];
+      const pr=[0.02,Math.max(0,0.6-motion),Math.min(1,motion*1.5),Math.max(0,motion-0.5),0.02];
+      const s=pr.reduce((a,b)=>a+b,0);const p=pr.map(x=>+(x/s).toFixed(2));const i=p.indexOf(Math.max(...p));
+      return {activity:cl[i],conf:p[i],probs:p,classes:cl,source:'rules',model:false};})()}],
+    person:[px,py,1.0],t:t};
+}
+
+function applyData(){
+  if(demoMode){ latest=demoFrame(); lastRx=performance.now(); }
+  const alive=(performance.now()-lastRx)<1800 && latest && latest.nodes && latest.nodes.length;
+  $('link').className='dot'+(alive?' on':'');
+  $('status').textContent=alive?('NODE '+latest.nodes[0].name+' · '+latest.nodes[0].fs+' Hz · '+latest.t.toFixed?'LIVE':'LIVE'):'— waiting for node (run the card + python) —';
+  // multi-card: render every placed card marker + refresh the Nodes panel
+  if(latest&&latest.nodes){updateNodes(latest.nodes);
+    if($('nodeWin').style.display==='block'&&!nodeDrag)renderNodeList();}
+  updateLos();                                   // 2-Meter Mode: computer marker + LoS beam
+  if(!alive){$('banner').style.display='none';return;}
+  const n=latest.nodes[0];
+  // calibration banner
+  $('banner').style.display=n.calibrated?'none':'block';
+  $('mCal').textContent=n.calibrated?'ambient locked':'calibrating…';
+  $('mCal').className='v '+(n.calibrated?'vac':'vam');
+  // metrics
+  const presPct=Math.round(n.presence*100);
+  $('mPres').textContent=presPct+'%';
+  $('mPres').style.color=n.presence>0.55?'#ff6b6b':(n.presence>0.35?'var(--amber)':'var(--ac)');
+  $('mMot').style.width=Math.round(n.motion*100)+'%';
+  $('mRng').textContent=n.presence>0.45?n.rangeM.toFixed(1):'—';
+  $('mRssi').textContent=n.rssi;
+  // AI activity analysis
+  if(n.ai){const A=n.ai;const COL={empty:'#4f6f5b',still:'#39ff9e',walking:'#27d1ff',fast:'#ffb43a',fall:'#ff4d6a'};
+    $('mAct').textContent=(A.activity||'—').toUpperCase()+' '+Math.round((A.conf||0)*100)+'%';
+    $('mAct').style.color=COL[A.activity]||'var(--ac)';
+    $('mAiSrc').textContent='· '+(A.model?'neural':'rules');
+    const bars=$('aiBars');if(bars.children.length!==(A.classes||A.probs||[]).length){bars.innerHTML=(A.classes||A.probs.map((_,i)=>i)).map(c=>'<div style="flex:1;background:#0a1a12;position:relative" title="'+c+'"><i style="position:absolute;bottom:0;left:0;right:0;background:'+(COL[c]||'#39ff9e')+';height:0"></i></div>').join('');}
+    [...bars.children].forEach((d,i)=>{d.firstChild.style.height=Math.round((A.probs[i]||0)*100)+'%';});
+  }
+  $('mBpm').textContent=(n.bpmConf>0.3&&n.bpm>5)?n.bpm.toFixed(0):'—';
+  $('mBconf').textContent=Math.round(n.bpmConf*100)+'%';
+  $('mBconf').className='v '+(n.bpmConf>0.4?'vac':'');
+  $('mFs').textContent=n.fs+' Hz';
+  $('mNa').textContent=n.nActive;
+  // mic bands
+  const mb=document.querySelectorAll('#mic div');
+  if(n.mic){for(let i=0;i<3;i++){const v=Math.min(1,n.mic[i+1]/800);mb[i].style.height=(6+v*22)+'px';mb[i].style.background=v>.6?'var(--amber)':'var(--ac)';}}
+  // waveform history (motion signal)
+  waveHist.push(n.motion); if(waveHist.length>224)waveHist.shift();
+  drawWave();
+  // heatmap
+  drawSpec(n.spec||[]);
+  // WiFi networks: live list (bottom-right) + anchors on the 3D plane
+  renderAPs(n.aps); updateAPMarkers(n.aps);
+  // 3D person
+  const p=latest.person;
+  if(p && n.presence>0.45){
+    person.visible=true;
+    person.position.set(p[0],0,p[1]);
+    // always face the camera (so the body/skeleton is seen from the front)
+    person.rotation.y=Math.atan2(cam.position.x-person.position.x,cam.position.z-person.position.z)+FIG_FRONT;
+    // CAMERA FUSION: webcam pose drives the skeleton while visible; CSI keeps position when occluded
+    const camSeen=camMode&&poseWorld&&(performance.now()-lastPoseT<700);
+    if(figure)figure.visible=!camSeen;
+    poseSkel.visible=camSeen;
+    if(camSeen){poseSkel.position.set(p[0],0,p[1]);
+      $('camTrack').textContent='CAMERA · pose '+Math.round(poseVisible*100)+'%';
+      if($('camStat').textContent==='camera on'||$('camStat').textContent.indexOf('WiFi')>=0)$('camStat').textContent='camera + WiFi';}
+    else if(camMode){$('camTrack').textContent='behind wall → WiFi-CSI';$('camStat').textContent='WiFi-CSI (occluded)';}
+    const hot=n.presence>0.6;
+    const brPh=0.5+0.5*Math.sin(performance.now()/500*(n.bpm>5?n.bpm/12:1));  // breathing 0..1
+    if(figure.userData.anatomy){                 // real 3D anatomy model (holographic)
+      skinU.uColor.value.setHex(hot?0xff4d6a:0x2a86ff);
+      skinU.uOpacity.value=0.6+n.presence*0.4+brPh*0.12;
+      beam.material.color.setHex(hot?0xff4d6a:0x27d1ff);
+    } else if(figure.userData.emissive){         // marker / mannequin (green glow)
+      const col=hot?RED:AC, ei=0.5+n.presence*0.9;
+      if(figure.userData.chest) figure.userData.chest.scale.set(1+brPh*0.1,1,1+brPh*0.1);
+      figure.userData.body.forEach(m=>{m.emissive.setHex(col);m.emissiveIntensity=ei;});
+      beam.material.color.setHex(col);
+    } else {                                     // procedural X-Ray (blue, tints red when near)
+      if(figure.userData.chest) figure.userData.chest.scale.set(1+brPh*0.1,1,1+brPh*0.1);
+      figure.userData.body[0].color.setHex(hot?0xff4d6a:0x2a86ff);
+      figure.userData.body[0].opacity=0.13+n.presence*0.12;
+      if(figure.userData.skel) figure.userData.skel.color.setHex(hot?0xffd7df:0xdfeeff);
+      beam.material.color.setHex(hot?0xff4d6a:0x27d1ff);
+    }
+    // uncertainty radius from confidence (less presence -> bigger)
+    const u=Math.max(.4,1.6-n.presence*1.3);unc.scale.set(u,u,1);uncRing.scale.set(u,u,1);
+    // floor ripple under the person when they move (more motion = faster, bigger waves)
+    const pnow=performance.now(), gap=Math.max(220,900-n.motion*900);
+    if(n.motion>0.12 && pnow-lastPersonWave>gap){lastPersonWave=pnow;
+      spawnRipple(p[0],p[1],hot?0xff4d6a:0x39ff9e,1.2+n.motion*2.5,1500,.55+n.motion*.35);}
+  } else { person.visible=false; poseSkel.visible=false; }
+}
+function drawWave(){
+  const c=waveCtx,W=224,H=60;c.clearRect(0,0,W,H);
+  c.strokeStyle='#10402b';c.lineWidth=1;c.beginPath();c.moveTo(0,H/2);c.lineTo(W,H/2);c.stroke();
+  c.strokeStyle='#39ff9e';c.lineWidth=1.5;c.beginPath();
+  for(let i=0;i<waveHist.length;i++){const x=i/224*W,y=H-6-waveHist[i]*(H-14);i?c.lineTo(x,y):c.moveTo(x,y);}
+  c.stroke();
+}
+// ── scientific colormaps (control-point ramps; viridis/inferno are CC0, turbo Apache) ──
+function lerp3(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+const CMAPS={
+  turbo:[[48,18,59],[70,107,227],[33,206,175],[150,237,46],[249,183,45],[228,78,25],[122,4,3]],
+  inferno:[[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[250,193,39],[252,255,164]],
+  viridis:[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]],
+  jet:[[0,0,131],[0,60,255],[0,228,255],[122,255,130],[255,255,0],[255,66,0],[128,0,0]],
+  ice:[[0,8,30],[12,74,140],[30,150,220],[120,220,245],[240,255,255]],
+  gray:[[0,0,0],[255,255,255]]};
+let cmapName='turbo';
+function CMAP(t){const s=CMAPS[cmapName];t=t<0?0:t>1?1:t;const n=s.length-1,f=t*n,i=Math.min(n-1,f|0),c=lerp3(s[i],s[i+1],f-i);return (c[0]|0)+','+(c[1]|0)+','+(c[2]|0);}
+// scrolling spectrogram: each column is an FFT slice (0..5 Hz), newest on the right
+const COLW=2;
+function drawSpec(spec){
+  const cv=$('spec'),c=specCtx,W=cv.width,H=cv.height;
+  if(!spec.length){return;}
+  c.drawImage(cv,-COLW,0);                 // scroll left
+  for(let i=0;i<spec.length;i++){
+    c.fillStyle='rgb('+CMAP(spec[i])+')';
+    const y1=H-(i/spec.length)*H, y0=H-((i+1)/spec.length)*H;
+    c.fillRect(W-COLW,y0,COLW+0.6,(y1-y0)+1);
+  }
+}
+
+// ───────── settings panel ─────────
+const cfg={pingHz:100,txPower:78,presenceBias:1.8,sensitivity:1.0,motionGain:6.0,smooth:0.6,rangeCalib:0.0,useAnchors:true,losMode:false,losDist:2.0};
+function pushCfg(){wsSend({type:'cfg',cfg:cfg});}
+function bindSet(id,key,vId,fmt){const el=$(id);if(!el)return;el.value=cfg[key];if(vId)$(vId).textContent=fmt(cfg[key]);
+  el.addEventListener('input',()=>{cfg[key]=parseFloat(el.value);if(vId)$(vId).textContent=fmt(cfg[key]);pushCfg();});}
+bindSet('sTx','txPower','vTx',v=>(v*0.25).toFixed(1)+'dBm');
+bindSet('sPing','pingHz','vPing',v=>v+'Hz');
+bindSet('sSens','presenceBias','vSens',v=>v.toFixed(1));
+bindSet('sMotS','sensitivity','vMotS',v=>v.toFixed(1)+'×');
+bindSet('sMot','motionGain','vMot',v=>v.toFixed(1));
+// ⚡ Turbo preset: single-device high-rate stream + maximum sensitivity + snappy
+function applyTurbo(){
+  Object.assign(cfg,{pingHz:1500,sensitivity:5.0,motionGain:12.0,presenceBias:1.3,smooth:0.35});
+  [['sPing','pingHz','vPing',v=>v+'Hz'],['sSens','presenceBias','vSens',v=>v.toFixed(1)],
+   ['sMotS','sensitivity','vMotS',v=>v.toFixed(1)+'×'],['sMot','motionGain','vMot',v=>v.toFixed(1)],
+   ['sSm','smooth','vSm',v=>v.toFixed(2)]].forEach(([id,k,vid,f])=>{const el=$(id);if(el){el.value=cfg[k];if($(vid))$(vid).textContent=f(cfg[k]);}});
+  pushCfg();
+}
+if($('btnTurbo'))$('btnTurbo').addEventListener('click',applyTurbo);
+// 2-Meter mode toggle + distance
+if($('sLos')){$('sLos').checked=cfg.losMode;$('sLos').addEventListener('change',()=>{cfg.losMode=$('sLos').checked;pushCfg();updateLos();});}
+if($('sLosD')){$('sLosD').value=cfg.losDist;$('sLosD').addEventListener('input',()=>{cfg.losDist=Math.max(0.5,parseFloat($('sLosD').value)||2);pushCfg();updateLos();});}
+bindSet('sSm','smooth','vSm',v=>v.toFixed(2));
+bindSet('sCal','rangeCalib','vCal',v=>v.toFixed(1)+'m');
+if($('sAnch')){$('sAnch').checked=cfg.useAnchors;$('sAnch').addEventListener('change',()=>{cfg.useAnchors=$('sAnch').checked;pushCfg();});}
+$('cmap').addEventListener('change',e=>{cmapName=e.target.value;});
+
+// ───────── WiFi anchors: list + 3D markers ─────────
+const apMarkerGroup=new THREE.Group();scene.add(apMarkerGroup);
+let apMarkers={}, apBusy=0, apSig='';
+function apSel(b,v){wsSend({type:'ap',bssid:b,sel:v});apBusy=performance.now();}
+function apAng(b,v){wsSend({type:'ap',bssid:b,angle:parseFloat(v)});apBusy=performance.now();}
+function renderAPs(apsIn){
+  if(!apsIn)return;
+  if(performance.now()-apBusy<1400)return;        // don't clobber a slider the user is dragging
+  // stable order (anchors first, then by name) so rows don't jump as RSSI fluctuates
+  const aps=[...apsIn].sort((a,b)=>(b.sel-a.sel)||String(a.ssid).localeCompare(String(b.ssid))||a.bssid.localeCompare(b.bssid));
+  const sig=aps.map(a=>a.bssid+(a.sel?'1':'0')).join();
+  const dyn=()=>aps.forEach(a=>{const row=document.querySelector('.aprow[data-b="'+a.bssid+'"]');if(!row)return;
+    row.querySelector('.rs').textContent=a.rssi;row.querySelector('.ds').textContent=a.dist+'m';
+    row.querySelector('.ibar>i').style.width=Math.round(a.interf*100)+'%';});
+  if(sig===apSig){dyn();return;}                   // same networks → just update values
+  apSig=sig;
+  let h='';aps.forEach(a=>{h+='<div class="aprow" data-b="'+a.bssid+'">'+
+    '<input type="checkbox" '+(a.sel?'checked':'')+' onchange="apSel(\''+a.bssid+'\',this.checked)">'+
+    '<span class="nm" title="'+esc(a.bssid)+'">'+esc(a.ssid)+'</span>'+
+    '<span class="rs">'+a.rssi+'</span><span class="ds">'+a.dist+'m</span>'+
+    '<span class="ibar"><i style="width:'+Math.round(a.interf*100)+'%"></i></span>'+
+    '<span class="ang"><input type="range" min="0" max="6.28" step="0.05" value="'+a.angle+'" '+
+    'onpointerdown="apBusy=performance.now()" oninput="apAng(\''+a.bssid+'\',this.value)"></span></div>';});
+  $('apList').innerHTML=h||'<div class="empty" style="color:#2c4639;padding:14px;text-align:center">no networks</div>';
+}
+function makeAPMarker(){const g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,1.6,6),new THREE.MeshBasicMaterial({color:AC2,transparent:true,opacity:.7}));pole.position.y=.8;g.add(pole);
+  const r=new THREE.Mesh(new THREE.TorusGeometry(.16,.018,8,22),new THREE.MeshBasicMaterial({color:AC2}));r.position.y=1.6;r.rotation.x=Math.PI/2;g.add(r);
+  g.userData.ring=r;return g;}
+function updateAPMarkers(aps){
+  if(!aps)return;const keep={};
+  aps.forEach(a=>{if(a.sel){keep[a.bssid]=1;let m=apMarkers[a.bssid];
+    if(!m){m=makeAPMarker();apMarkers[a.bssid]=m;apMarkerGroup.add(m);}
+    const d=Math.min(a.dist,12);m.position.set(d*Math.cos(a.angle),0,d*Math.sin(a.angle));
+    const hot=0x27d1ff,on=a.interf>0.15;m.userData.ring.material.color.setHex(on?0xffb43a:hot);}});
+  for(const b in apMarkers){if(!keep[b]){apMarkerGroup.remove(apMarkers[b]);delete apMarkers[b];}}
+}
+
+// ───────── wave / ripple effects on the floor ─────────
+// WiFi pulses expand from the card (and from active anchors); the floor ripples
+// under the person whenever they move.
+const ripples=[];
+const ringGeo=new THREE.RingGeometry(0.955,1.0,72);
+function spawnRipple(x,z,color,maxR,life,op){
+  if(ripples.length>48)return;
+  const m=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:op,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+  m.rotation.x=-Math.PI/2;m.position.set(x,.03,z);m.scale.set(.05,.05,1);scene.add(m);
+  ripples.push({m,t0:performance.now(),maxR,life,op});
+}
+function animRipples(){
+  const now=performance.now();
+  for(let i=ripples.length-1;i>=0;i--){const r=ripples[i],k=(now-r.t0)/r.life;
+    if(k>=1){scene.remove(r.m);r.m.material.dispose();ripples.splice(i,1);continue;}
+    const s=0.05+k*r.maxR;r.m.scale.set(s,s,1);r.m.material.opacity=r.op*(1-k)*(1-k);}
+}
+let lastNodeWave=0,lastPersonWave=0,lastApWave=0;
+
+// ───────── room furniture (original geometry, tactical wireframe) ─────────
+const furnGroup=new THREE.Group();scene.add(furnGroup);
+let furns=[];
+function fbox(w,h,d,x,y,z,g){const geo=new THREE.BoxGeometry(w,h,d);
+  const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x123a52,transparent:true,opacity:.30,depthWrite:false}));m.position.set(x,y,z);g.add(m);
+  const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x27d1ff,transparent:true,opacity:.8}));e.position.copy(m.position);g.add(e);}
+const FURN={
+  sofa:g=>{fbox(1.9,.42,.85,0,.21,0,g);fbox(1.9,.45,.18,0,.64,-.33,g);fbox(.18,.3,.85,-.86,.57,0,g);fbox(.18,.3,.85,.86,.57,0,g);},
+  bed:g=>{fbox(1.5,.32,2.05,0,.16,0,g);fbox(1.5,.95,.08,0,.47,-1.02,g);fbox(1.3,.12,.5,0,.38,-.7,g);},
+  table:g=>{fbox(1.2,.06,.75,0,.74,0,g);[[-.54,-.32],[.54,-.32],[-.54,.32],[.54,.32]].forEach(p=>fbox(.06,.72,.06,p[0],.36,p[1],g));},
+  desk:g=>{fbox(1.4,.05,.7,0,.75,0,g);fbox(.05,.72,.66,-.66,.37,0,g);fbox(.05,.72,.66,.66,.37,0,g);},
+  chair:g=>{fbox(.48,.06,.48,0,.46,0,g);fbox(.48,.5,.06,0,.74,-.21,g);[[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]].forEach(p=>fbox(.04,.44,.04,p[0],.22,p[1],g));},
+  tv:g=>{fbox(1.25,.72,.07,0,1.16,0,g);fbox(1.4,.5,.42,0,.25,.05,g);},
+  wardrobe:g=>{fbox(1.2,2.0,.6,0,1.0,0,g);fbox(.02,1.9,.02,0,1.0,.31,g);},
+  plant:g=>{fbox(.36,.4,.36,0,.2,0,g);fbox(.6,.7,.6,0,.85,0,g);},
+  wall:g=>{fbox(3,2.5,.12,0,1.25,0,g);},
+  door:g=>{fbox(.9,2.05,.06,0,1.025,0,g);}
+};
+function saveFurn(){try{localStorage.setItem('sgpFurn',JSON.stringify(furns.map(g=>({t:g.userData.type,x:+g.position.x.toFixed(2),z:+g.position.z.toFixed(2),r:+g.rotation.y.toFixed(3)}))));}catch(e){}}
+function addFurn(type,x,z,rot,save){if(!FURN[type])return null;const g=new THREE.Group();FURN[type](g);
+  g.position.set(x,0,z);g.rotation.y=rot||0;g.userData.type=type;furnGroup.add(g);furns.push(g);if(save!==false)saveFurn();return g;}
+function loadFurn(){try{JSON.parse(localStorage.getItem('sgpFurn')||'[]').forEach(f=>addFurn(f.t,f.x,f.z,f.r,false));}catch(e){}}
+function clearFurn(){furns.forEach(g=>furnGroup.remove(g));furns=[];saveFurn();}
+loadFurn();
+// picking + drag on the floor plane
+const ray=new THREE.Raycaster(),mouseV=new THREE.Vector2(),floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+let furnDrag=null;const dragOff=new THREE.Vector3();
+function setRay(e){const r=cv.getBoundingClientRect();mouseV.x=((e.clientX-r.left)/r.width)*2-1;mouseV.y=-((e.clientY-r.top)/r.height)*2+1;ray.setFromCamera(mouseV,cam);}
+function pickFurn(e){setRay(e);const h=ray.intersectObjects(furnGroup.children,true);if(!h.length)return null;
+  let o=h[0].object;while(o.parent&&o.parent!==furnGroup)o=o.parent;return o;}
+function floorPt(e){setRay(e);const p=new THREE.Vector3();return ray.ray.intersectPlane(floorPlane,p)?p:null;}
+addEventListener('mousemove',e=>{if(!furnDrag)return;const p=floorPt(e);if(p){furnDrag.position.x=p.x+dragOff.x;furnDrag.position.z=p.z+dragOff.z;}});
+addEventListener('mouseup',()=>{if(furnDrag){saveFurn();furnDrag=null;}});
+cv.addEventListener('dblclick',e=>{const f=pickFurn(e);if(f){f.rotation.y+=Math.PI/4;saveFurn();}});
+cv.addEventListener('contextmenu',e=>{const f=pickFurn(e);if(f){e.preventDefault();furnGroup.remove(f);furns=furns.filter(g=>g!==f);saveFurn();}});
+// Room menu
+const roomPop=$('roomPop');
+$('mnuRoom').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();
+  roomPop.style.left=r.left+'px';roomPop.style.top=r.bottom+'px';
+  roomPop.style.display=(roomPop.style.display==='block')?'none':'block';viewPop.style.display='none';e.stopPropagation();});
+roomPop.querySelectorAll('.mi').forEach(d=>d.addEventListener('click',e=>{e.stopPropagation();roomPop.style.display='none';
+  const t=d.dataset.f;if(t==='__clear'){clearFurn();return;}
+  const a=Math.random()*Math.PI*2,rr=1.5+Math.random()*1.5;addFurn(t,rr*Math.cos(a),rr*Math.sin(a),0);}));
+addEventListener('click',()=>{roomPop.style.display='none';});
+
+// ───────── multi-card mode: SGP Card Mini nodes placed in the room ─────────
+// Each card is a draggable marker on the floor. Drag it to where the card
+// really is; the backend uses the positions for trilateration (>=3 cards).
+const nodeGroup=new THREE.Group();scene.add(nodeGroup);
+const nodeMap={}; let nodeDrag=null, nodeSendT=0;
+function makeLabel(txt){
+  const c=document.createElement('canvas');c.width=160;c.height=44;const x=c.getContext('2d');
+  x.fillStyle='rgba(5,11,8,.82)';x.fillRect(0,0,160,44);
+  x.strokeStyle='#27d1ff';x.lineWidth=2;x.strokeRect(1,1,158,42);
+  x.font='bold 24px ui-monospace,Menlo,monospace';x.textAlign='center';x.textBaseline='middle';x.fillStyle='#39ff9e';
+  x.fillText(String(txt).slice(0,10),80,23);
+  const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));
+  s.scale.set(.7,.19,1);return s;
+}
+function buildNode(name){
+  const g=new THREE.Group();g.userData.node=name;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.36),
+    new THREE.MeshStandardMaterial({color:0x060a09,emissive:0x27d1ff,emissiveIntensity:.5,roughness:.4,metalness:.3}));
+  body.position.y=.12;g.add(body);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.12,6),new THREE.MeshBasicMaterial({color:0x27d1ff}));
+  pole.position.y=.06;g.add(pole);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.24,.3,36),
+    new THREE.MeshBasicMaterial({color:0x27d1ff,transparent:true,opacity:.75,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=.016;g.add(ring);
+  const lab=makeLabel(name);lab.position.set(0,.42,0);g.add(lab);
+  g.userData.ring=ring;g.userData.body=body;
+  nodeGroup.add(g);return g;
+}
+function pickNode(e){if(!nodeGroup.children.length)return null;setRay(e);
+  const h=ray.intersectObjects(nodeGroup.children,true);if(!h.length)return null;
+  let o=h[0].object;while(o.parent&&o.parent!==nodeGroup)o=o.parent;return o;}
+function updateNodes(ns){
+  const seen={};
+  (ns||[]).forEach(n=>{seen[n.name]=1;
+    let g=nodeMap[n.name];if(!g){g=buildNode(n.name);nodeMap[n.name]=g;}
+    if(g!==nodeDrag && n.pos)g.position.set(n.pos[0],0,n.pos[1]);   // don't fight an active drag
+    const on=n.online;
+    g.userData.ring.material.color.setHex(on?0x39ff9e:0x7a4a4a);
+    g.userData.ring.material.opacity=on?0.8:0.4;
+    g.userData.body.material.emissive.setHex(on?0x27d1ff:0x3a2020);
+  });
+  Object.keys(nodeMap).forEach(k=>{if(!seen[k]){nodeGroup.remove(nodeMap[k]);delete nodeMap[k];}});
+}
+// drag a card on the floor → tell the backend its real position (throttled)
+addEventListener('mousemove',e=>{if(!nodeDrag)return;const p=floorPt(e);if(!p)return;
+  nodeDrag.position.x=p.x+dragOff.x;nodeDrag.position.z=p.z+dragOff.z;
+  const now=performance.now();if(now-nodeSendT>120){nodeSendT=now;
+    wsSend({type:'node',action:'pos',name:nodeDrag.userData.node,x:nodeDrag.position.x,y:nodeDrag.position.z});}});
+addEventListener('mouseup',()=>{if(!nodeDrag)return;
+  wsSend({type:'node',action:'pos',name:nodeDrag.userData.node,x:nodeDrag.position.x,y:nodeDrag.position.z});
+  renderNodeList();nodeDrag=null;});
+// Nodes menu + window
+function updateDiscUI(){
+  const d=(latest&&latest.discover)||null, stat=$('discStat'), dot=$('discDot'), chk=$('discChk');
+  if(!stat) return;
+  if(d){
+    if(chk && document.activeElement!==chk) chk.checked=!!d.on;
+    stat.textContent = d.on ? ('scanning '+(d.subnet||'Wi-Fi')+' · '+d.found+' found') : 'off';
+    if(dot) dot.classList.toggle('on', d.on && ((performance.now()/600|0)%2===0));
+  } else { stat.textContent='—'; }
+}
+function renderNodeList(){
+  updateDiscUI();
+  const el=$('nodeList');if(!el)return;const ns=(latest&&latest.nodes)||[];
+  if(!ns.length){const scan=latest&&latest.discover&&latest.discover.on;
+    el.innerHTML='<div class="lab" style="opacity:.6;padding:3px 2px">'+(scan?'🔍 looking for cards on your Wi-Fi…':'no cards yet — add one below')+'</div>';return;}
+  el.innerHTML=ns.map(n=>'<div class="noderow2"><span class="nd-dot'+(n.online?' on':'')+'"></span><b>'+esc(n.name)+'</b>'
+    +'<span class="nd-xy">('+(n.pos?n.pos[0].toFixed(1):'?')+', '+(n.pos?n.pos[1].toFixed(1):'?')+') m</span>'
+    +'<button class="nd-rm raised" data-n="'+esc(n.name)+'">×</button></div>').join('');
+  el.querySelectorAll('.nd-rm').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();
+    wsSend({type:'node',action:'remove',name:b.dataset.n});}));
+}
+$('mnuNode').addEventListener('click',e=>{e.stopPropagation();
+  const w=$('nodeWin');const show=(w.style.display==='none'||!w.style.display);
+  w.style.display=show?'block':'none';if(show)renderNodeList();
+  viewPop.style.display='none';roomPop.style.display='none';});
+$('nodeWin').addEventListener('click',e=>e.stopPropagation());  // keep window open
+$('nodeClose').addEventListener('click',()=>{$('nodeWin').style.display='none';});
+$('ndAdd').addEventListener('click',()=>{const ip=$('ndIp').value.trim()||'192.168.4.1';const nm=$('ndName').value.trim();
+  const msg={type:'node',action:'add',ip:ip};if(nm)msg.name=nm;wsSend(msg);
+  $('ndName').value='';$('ndIp').value='';});
+$('ndIp').addEventListener('keydown',e=>{if(e.key==='Enter')$('ndAdd').click();});
+$('discChk').addEventListener('change',e=>wsSend({type:'discover',on:e.target.checked}));
+
+// ───────── 2-Meter Mode: computer (TX) ─── you ─── card (RX) on one line ─────
+const losGroup=new THREE.Group();losGroup.visible=false;scene.add(losGroup);
+const losPC=new THREE.Group();                                   // the computer marker
+const losScreen=new THREE.Mesh(new THREE.BoxGeometry(.44,.30,.02),
+  new THREE.MeshStandardMaterial({color:0x060a09,emissive:0x27d1ff,emissiveIntensity:.55,roughness:.4}));
+losScreen.position.set(0,.26,0);losScreen.rotation.x=-.22;losPC.add(losScreen);
+const losBase=new THREE.Mesh(new THREE.BoxGeometry(.44,.02,.30),
+  new THREE.MeshStandardMaterial({color:0x14141a,metalness:.4,roughness:.5}));
+losBase.position.set(0,.08,.14);losPC.add(losBase);
+const losPCLabel=makeLabel('COMPUTER');losPCLabel.position.set(0,.62,0);losPC.add(losPCLabel);
+losGroup.add(losPC);
+const losLineMat=new THREE.LineBasicMaterial({color:0x27d1ff,transparent:true,opacity:.55});
+const losLineGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.9,0),new THREE.Vector3(2,.9,0)]);
+losGroup.add(new THREE.Line(losLineGeo,losLineMat));
+function updateLos(){
+  losGroup.visible=!!cfg.losMode;
+  if(!cfg.losMode)return;
+  const D=cfg.losDist||2;
+  losPC.position.set(D,0,0);                                     // computer sits D metres along +x
+  const p=losLineGeo.attributes.position;p.setXYZ(0,0,.9,0);p.setXYZ(1,D,.9,0);p.needsUpdate=true;
+  const n=latest&&latest.nodes&&latest.nodes[0];const hot=n&&n.presence>0.5;   // someone on the line
+  losLineMat.color.setHex(hot?0xff4d6a:0x27d1ff);losLineMat.opacity=hot?0.95:0.5;
+}
+
+// ───────── camera mode: MediaPipe pose → live 3D skeleton, fused with WiFi-CSI ─────────
+// Camera drives the skeleton's pose while the person is visible; when they step
+// behind a wall and the camera loses them, WiFi-CSI keeps the position.
+let camMode=false, poseLM=null, camVideo=null, camOvCtx=null, lastPoseT=0, poseLast=-1;
+let poseWorld=null, poseVisible=0;
+const POSE_CONN=[[11,12],[11,13],[13,15],[15,17],[15,19],[12,14],[14,16],[16,18],[16,20],
+  [11,23],[12,24],[23,24],[23,25],[25,27],[27,29],[27,31],[24,26],[26,28],[28,30],[28,32],
+  [0,11],[0,12],[9,10]];
+// 3D skeleton built from pose landmarks
+const poseSkel=new THREE.Group();poseSkel.visible=false;scene.add(poseSkel);
+const poseJoints=[]; for(let i=0;i<33;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(.03,8,8),new THREE.MeshBasicMaterial({color:0x39ff9e}));poseSkel.add(s);poseJoints.push(s);}
+const poseBoneGeo=new THREE.BufferGeometry();poseBoneGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(POSE_CONN.length*2*3),3));
+const poseBones=new THREE.LineSegments(poseBoneGeo,new THREE.LineBasicMaterial({color:0x27d1ff,linewidth:2}));poseSkel.add(poseBones);
+
+async function toggleCam(on){
+  camMode=(on===undefined)?!camMode:on;
+  $('cam').style.display=camMode?'block':'none';
+  if(camMode) startCam(); else stopCam();
+}
+async function startCam(){
+  try{
+    camOvCtx=$('camOv').getContext('2d');
+    $('camStat').textContent='opening webcam…';
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240},audio:false});
+    camVideo=$('camVid');camVideo.srcObject=stream;await camVideo.play().catch(()=>{});
+    if(!poseLM){
+      $('camStat').textContent='loading pose model…';
+      const V=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+      const fs=await V.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+      poseLM=await V.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},runningMode:'VIDEO',numPoses:1});
+    }
+    $('camStat').textContent='camera on';
+    requestAnimationFrame(poseLoop);
+  }catch(e){$('camStat').textContent='error: '+(e.message||e);camMode=false;$('cam').style.display='block';}
+}
+function stopCam(){ if(camVideo&&camVideo.srcObject){camVideo.srcObject.getTracks().forEach(t=>t.stop());camVideo.srcObject=null;} poseSkel.visible=false; $('camTrack').textContent='—'; }
+function poseLoop(){
+  if(!camMode){return;}
+  if(poseLM&&camVideo&&camVideo.readyState>=2&&camVideo.currentTime!==poseLast){
+    poseLast=camVideo.currentTime;
+    try{ const r=poseLM.detectForVideo(camVideo,performance.now());
+      if(r.landmarks&&r.landmarks.length){onPose(r.landmarks[0],(r.worldLandmarks||[])[0]);lastPoseT=performance.now();}
+    }catch(e){}
+  }
+  requestAnimationFrame(poseLoop);
+}
+function onPose(lm2d, world){
+  poseWorld=world||null; poseVisible=lm2d.reduce((a,p)=>a+(p.visibility||0),0)/lm2d.length;
+  // 2D overlay on the webcam
+  const ov=$('camOv'),c=camOvCtx,W=ov.width,H=ov.height;c.clearRect(0,0,W,H);
+  c.strokeStyle='#27d1ff';c.lineWidth=2;c.beginPath();
+  POSE_CONN.forEach(([a,b])=>{if(lm2d[a]&&lm2d[b]){c.moveTo(lm2d[a].x*W,lm2d[a].y*H);c.lineTo(lm2d[b].x*W,lm2d[b].y*H);}});c.stroke();
+  c.fillStyle='#39ff9e';lm2d.forEach(p=>{c.beginPath();c.arc(p.x*W,p.y*H,2.4,0,7);c.fill();});
+}
+function updatePoseSkel(){
+  if(!poseWorld){return;}
+  // world landmarks: metres, origin at hips, y down, z toward camera
+  const pos=poseBoneGeo.attributes.position.array; let k=0;
+  for(let i=0;i<33;i++){const w=poseWorld[i];if(!w){poseJoints[i].visible=false;continue;}poseJoints[i].visible=true;
+    poseJoints[i].position.set(w.x, 0.95 - w.y, -w.z);}
+  POSE_CONN.forEach(([a,b])=>{const A=poseJoints[a].position,B=poseJoints[b].position;
+    pos[k++]=A.x;pos[k++]=A.y;pos[k++]=A.z;pos[k++]=B.x;pos[k++]=B.y;pos[k++]=B.z;});
+  poseBoneGeo.attributes.position.needsUpdate=true;
+}
+$('mnuCam').addEventListener('click',e=>{e.stopPropagation();viewPop.style.display='none';roomPop.style.display='none';toggleCam();});
+
+// ── camera image filters (night vision, thermal, etc.) ──
+const CAMF={
+  none:   {f:'none'},
+  night:  {f:'grayscale(1) brightness(1.55) contrast(1.4)',nv:true},
+  thermal:{f:'saturate(2.6) hue-rotate(150deg) contrast(1.5) brightness(1.05)'},
+  ir:     {f:'sepia(1) saturate(5) hue-rotate(312deg) contrast(1.25) brightness(1.1)'},
+  low:    {f:'brightness(2.0) contrast(1.15) saturate(1.1)',nv:false,grain:true},
+  mono:   {f:'grayscale(1) contrast(1.15)'},
+  hc:     {f:'contrast(1.95) brightness(1.1)'},
+  edge:   {f:'grayscale(1) contrast(3.2) brightness(1.3) invert(0.08)',nv:true}
+};
+function applyCamFilter(n){
+  const c=CAMF[n]||CAMF.none, vid=$('camVid'), fx=$('camFx');
+  vid.style.filter=c.f;
+  if(c.nv){
+    fx.style.cssText='position:absolute;inset:0;pointer-events:none;background:rgba(24,255,96,.22);mix-blend-mode:multiply;box-shadow:inset 0 0 90px rgba(0,0,0,.85)';
+    fx.innerHTML='<div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.28) 2px 3px)"></div>';
+  }else if(c.grain){
+    fx.style.cssText='position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 70px rgba(0,0,0,.6)';fx.innerHTML='';
+  }else{fx.style.cssText='position:absolute;inset:0;pointer-events:none';fx.innerHTML='';}
+}
+$('camFilter').addEventListener('change',e=>{applyCamFilter(e.target.value);try{localStorage.setItem('sgpCamF',e.target.value)}catch(_){}} );
+try{const sf=localStorage.getItem('sgpCamF');if(sf){$('camFilter').value=sf;applyCamFilter(sf);}}catch(_){}
+// maximize (fill the app) + real fullscreen
+$('camMax').addEventListener('click',e=>{e.stopPropagation();$('cam').classList.toggle('cam-max');});
+$('camTb').addEventListener('dblclick',()=>$('cam').classList.toggle('cam-max'));
+$('camFull').addEventListener('click',e=>{e.stopPropagation();const el=$('cam');
+  if(!document.fullscreenElement){(el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el);}
+  else{(document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document);}});
+
+// ───────── render loop ─────────
+function tick(){
+  requestAnimationFrame(tick);
+  applyData();
+  // WiFi pulses from the card, and from each active anchor
+  const now=performance.now();
+  if(now-lastNodeWave>1200){lastNodeWave=now;spawnRipple(0,0,0x27d1ff,7,2800,.32);}
+  if(now-lastApWave>1700){lastApWave=now;for(const b in apMarkers){const m=apMarkers[b];spawnRipple(m.position.x,m.position.z,0xffb43a,2.2,1800,.28);}}
+  animRipples();
+  if(camMode&&poseSkel.visible)updatePoseSkel();
+  beacon.material.color.setHex((Math.sin(performance.now()/300)>0)?AC:0x0e3322);
+  renderer.render(scene,cam);
+}
+tick();
+</script>
+</body></html>
