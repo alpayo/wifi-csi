@@ -1,7 +1,8 @@
 /*
  * ═══════════════════════════════════════════════════════════════════════════
- *   SGP CSI TURBO  —  single-device, maximum-rate WiFi-CSI sensor (SGP Card Mini)
- *   ESP32-S3 · creates its OWN WiFi network and streams CSI as fast as it can
+ *   SGP CSI TURBO  —  single-device, maximum-rate WiFi-CSI sensor
+ *   LilyGO T-Display (classic ESP32) · creates its OWN WiFi network and
+ *   streams CSI as fast as it can
  * ═══════════════════════════════════════════════════════════════════════════
  *
  *   This is the HIGH-PERFORMANCE single-card firmware. It is a pure sensor:
@@ -22,20 +23,20 @@
  *   firmware with no changes. It also answers the "SD" discovery probe, so the
  *   app still auto-detects it.
  *
- *   Hardware (SGP Card Mini): NeoPixel=5, sensor rail CE=6.
- *   Build: ESP32-S3 · Partition "Huge APP" · Flash 8MB · Lib: Adafruit NeoPixel.
+ *   Hardware: LilyGO T-Display (ESP32-D0WDQ6-V3, 16MB flash, CH340K USB-serial).
+ *   Ported from the upstream SGP Card Mini (ESP32-S3) build, which drove a
+ *   NeoPixel on pin 5 and a sensor rail on pin 6; the T-Display has neither
+ *   (its pin 5 is the display's chip select), so both are gone and the status
+ *   they showed is printed on the serial port once a second.
+ *   Build: board esp32:esp32:esp32 (ESP32 Dev Module) · Partition "Huge APP"
+ *          · Flash 4MB+ · arduino-esp32 core 3.3.x · no extra libraries.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <Adafruit_NeoPixel.h>
 #include "esp_wifi.h"
 
 #define FW_VERSION    "SGP CSI TURBO v1.0"
-
-// ───────── pins ─────────
-#define PIN_RGB_LED   5
-#define PIN_SENSOR_CE 6
 
 // ───────── network ─────────
 #define AP_CHANNEL    6          // fixed channel — CSI is per-channel
@@ -55,28 +56,30 @@ struct Frame {
   uint8_t  channel, flags;
 };
 static Frame    ring[RING_N];
-static volatile uint16_t rHead = 0, rTail = 0;   // 1 producer (CSI cb), 1 consumer (loop)
+// 1 producer (CSI cb, WiFi task on core 0), 1 consumer (loop, core 1): the
+// release/acquire pair makes a frame's bytes visible before its index is.
+static uint16_t rHead = 0, rTail = 0;
 
 WiFiUDP      udp;
 IPAddress    pcIP;
 uint16_t     pcPort = 0;
 unsigned long pcLastSeen = 0;
-uint32_t     seq = 0, framesSent = 0, csiRx = 0, dropped = 0;
+uint32_t     seq = 0, framesSent = 0;
+// written only by the CSI callback and never reset: loop() reads per-second
+// deltas, so no increment is lost to a cross-core read-modify-write
+static uint32_t csiRx = 0, dropped = 0;
 String       apName;
+bool         csiOk = false;
 uint8_t      staMac[6]; bool staKnown = false;
-
-Adafruit_NeoPixel led(1, PIN_RGB_LED, NEO_GRB + NEO_KHZ800);
-void ledColor(uint8_t r, uint8_t g, uint8_t b) {
-  led.setPixelColor(0, led.Color(r, g, b)); led.show();
-}
 
 // ───────── CSI capture (WiFi task — keep it tiny: copy into the ring) ─────────
 void csiCallback(void* ctx, wifi_csi_info_t* info) {
   if (!info || !info->buf || info->len == 0) return;
   if (staKnown && memcmp(info->mac, staMac, 6) != 0) return;   // only the PC link
-  uint16_t next = (uint16_t)((rHead + 1) & (RING_N - 1));
-  if (next == rTail) { dropped++; return; }                    // full → drop oldest-newest
-  Frame& f = ring[rHead];
+  uint16_t head = rHead;                                       // only we write it
+  uint16_t next = (uint16_t)((head + 1) & (RING_N - 1));
+  if (next == __atomic_load_n(&rTail, __ATOMIC_ACQUIRE)) { __atomic_fetch_add(&dropped, 1, __ATOMIC_RELAXED); return; }   // full → drop newest
+  Frame& f = ring[head];
   f.len     = info->len > CSI_MAX ? CSI_MAX : info->len;
   memcpy(f.buf, info->buf, f.len);
   f.t_ms    = millis();
@@ -84,10 +87,11 @@ void csiCallback(void* ctx, wifi_csi_info_t* info) {
   f.noise   = info->rx_ctrl.noise_floor;
   f.channel = info->rx_ctrl.channel;
   f.flags   = info->first_word_invalid ? 1 : 0;
-  rHead = next; csiRx++;
+  __atomic_store_n(&rHead, next, __ATOMIC_RELEASE);
+  __atomic_fetch_add(&csiRx, 1, __ATOMIC_RELAXED);
 }
 
-void csiStart() {
+bool csiStart() {
   wifi_csi_config_t cfg = {};
   cfg.lltf_en           = true;    // legacy LTF: in every packet → 64 sub-carriers
   cfg.htltf_en          = false;
@@ -97,9 +101,12 @@ void csiStart() {
   cfg.manu_scale        = false;
   cfg.shift             = 0;
   cfg.dump_ack_en       = false;
-  esp_wifi_set_csi_config(&cfg);
-  esp_wifi_set_csi_rx_cb(csiCallback, NULL);
-  esp_wifi_set_csi(true);
+  // a core built without CSI support fails here, not later — say so loudly
+  esp_err_t e = esp_wifi_set_csi_config(&cfg);
+  if (e == ESP_OK) e = esp_wifi_set_csi_rx_cb(csiCallback, NULL);
+  if (e == ESP_OK) e = esp_wifi_set_csi(true);
+  if (e != ESP_OK) Serial.printf("[CSI] start FAILED: %s\n", esp_err_to_name(e));
+  return e == ESP_OK;
 }
 
 void onWifiEvent(WiFiEvent_t ev, WiFiEventInfo_t info) {
@@ -142,8 +149,6 @@ void sendHello(IPAddress ip, uint16_t port) {
 void setup() {
   Serial.begin(115200); delay(150);
   Serial.println("\n" FW_VERSION);
-  pinMode(PIN_SENSOR_CE, OUTPUT); digitalWrite(PIN_SENSOR_CE, HIGH);
-  led.begin(); led.setBrightness(110); ledColor(0, 0, 60);
 
   apName = "SGP_TURBO_" + String((uint16_t)(ESP.getEfuseMac() & 0xFFFF), HEX);
   WiFi.onEvent(onWifiEvent);
@@ -152,7 +157,7 @@ void setup() {
   WiFi.setSleep(WIFI_PS_NONE);                 // never sleep — maximum throughput
   esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
   esp_wifi_set_max_tx_power(80);               // strong link = cleaner CSI
-  csiStart();
+  csiOk = csiStart();
   udp.begin(UDP_PORT);
 
   Serial.printf("AP \"%s\" ch%d  ->  join it, run SGP CSI WIFI (Turbo ping)\n",
@@ -175,20 +180,25 @@ void loop() {
   // 2) drain the CSI ring as fast as possible → PC
   bool live = pcPort && (millis() - pcLastSeen < PC_TIMEOUT_MS);
   int burst = 0;
-  while (rTail != rHead) {
-    if (live) sendFrame(ring[rTail]);
-    rTail = (uint16_t)((rTail + 1) & (RING_N - 1));
+  uint16_t tail = rTail;                                       // only we write it
+  while (tail != __atomic_load_n(&rHead, __ATOMIC_ACQUIRE)) {
+    if (live) sendFrame(ring[tail]);
+    tail = (uint16_t)((tail + 1) & (RING_N - 1));
+    __atomic_store_n(&rTail, tail, __ATOMIC_RELEASE);
     if (++burst >= 64) break;          // yield to WiFi after a burst, then come back
   }
 
   // 3) status LED + rate print (once a second; cheap)
-  static unsigned long tStat = 0; static uint32_t lastSent = 0;
+  static unsigned long tStat = 0;
+  static uint32_t lastSent = 0, lastRx = 0, lastDropped = 0;
   unsigned long now = millis();
   if (now - tStat >= 1000) {
-    uint32_t hz = framesSent - lastSent; lastSent = framesSent; tStat = now;
-    if (live) ledColor(0, 50 + (now / 1000 % 2) * 50, 10); else ledColor(0, 0, 50);
-    Serial.printf("CSI %lu/s  sent %lu/s  dropped %lu\n",
-                  (unsigned long)csiRx, (unsigned long)hz, (unsigned long)dropped);
-    csiRx = 0; dropped = 0;
+    uint32_t rx = __atomic_load_n(&csiRx, __ATOMIC_RELAXED);
+    uint32_t dr = __atomic_load_n(&dropped, __ATOMIC_RELAXED);
+    uint32_t hz = framesSent - lastSent, rxHz = rx - lastRx, drHz = dr - lastDropped;
+    lastSent = framesSent; lastRx = rx; lastDropped = dr; tStat = now;
+    Serial.printf("%s  clients %d  CSI %lu/s  sent %lu/s  dropped %lu\n",
+                  live ? "STREAMING" : "WAITING  ", WiFi.softAPgetStationNum(),
+                  (unsigned long)rxHz, (unsigned long)hz, (unsigned long)drHz);
   }
 }
