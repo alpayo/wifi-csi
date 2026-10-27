@@ -23,20 +23,44 @@
  *   firmware with no changes. It also answers the "SD" discovery probe, so the
  *   app still auto-detects it.
  *
- *   Hardware: LilyGO T-Display (ESP32-D0WDQ6-V3, 16MB flash, CH340K USB-serial).
- *   Ported from the upstream SGP Card Mini (ESP32-S3) build, which drove a
- *   NeoPixel on pin 5 and a sensor rail on pin 6; the T-Display has neither
- *   (its pin 5 is the display's chip select), so both are gone and the status
- *   they showed is printed on the serial port once a second.
- *   Build: board esp32:esp32:esp32 (ESP32 Dev Module) · Partition "Huge APP"
- *          · Flash 4MB+ · arduino-esp32 core 3.3.x · no extra libraries.
+ *   Hardware: LilyGO T-Display (ESP32-D0WDQ6-V3, 16MB flash, CH340K USB-serial,
+ *   1.14" 135x240 ST7789). Ported from the upstream SGP Card Mini (ESP32-S3)
+ *   build, which drove a NeoPixel on pin 5 and a sensor rail on pin 6; the
+ *   T-Display has neither (its pin 5 is the screen's chip select). The link
+ *   state the NeoPixel showed is now on the screen, readable across the room,
+ *   and on the serial port once a second.
+ *
+ *   Screen: SSID + channel, link state (NO CLIENT / JOINED / STREAMING, or
+ *   NO CSI / CSI ERROR / AP DOWN in red), CSI frames per second, clients,
+ *   UDP frames sent per second and drops.
+ *   Send "shot" + newline on the serial port to get the current frame back as
+ *   "SHOT 240 135\n" + 240*135 RGB565 pixels (little-endian) + "\nEND\n".
+ *   (a WiFi event line printed mid-frame corrupts it: just ask again)
+ *
+ *   Build: arduino-esp32 core 3.3.x · board "LilyGo T-Display"
+ *          (esp32:esp32:lilygo_t_display) · Flash Size 16MB · Partition
+ *          "Huge APP" · Lib: Adafruit ST7735 and ST7789 Library (+ Adafruit GFX).
  * ═══════════════════════════════════════════════════════════════════════════
  */
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>
 #include "esp_wifi.h"
 
 #define FW_VERSION    "SGP CSI TURBO v1.0"
+
+// ───────── T-Display screen (ST7789, 135x240) ─────────
+#define TFT_MOSI      19
+#define TFT_SCLK      18
+#define TFT_CS        5
+#define TFT_DC        16
+#define TFT_RST       23
+#define TFT_BL        4
+#define TFT_ROTATION  1          // landscape; 3 = the same, turned 180°
+#define TFT_W         240
+#define TFT_H         135
 
 // ───────── network ─────────
 #define AP_CHANNEL    6          // fixed channel — CSI is per-channel
@@ -69,7 +93,7 @@ uint32_t     seq = 0, framesSent = 0;
 // deltas, so no increment is lost to a cross-core read-modify-write
 static uint32_t csiRx = 0, dropped = 0;
 String       apName;
-bool         csiOk = false;
+bool         apOk = false, csiOk = false;
 uint8_t      staMac[6]; bool staKnown = false;
 
 // ───────── CSI capture (WiFi task — keep it tiny: copy into the ring) ─────────
@@ -146,14 +170,102 @@ void sendHello(IPAddress ip, uint16_t port) {
   udp.beginPacket(ip, port); udp.write(b, o); udp.endPacket();
 }
 
+// ───────── status screen (drawn off-screen, blitted once a second) ─────────
+Adafruit_ST7789 tft(&SPI, TFT_CS, TFT_DC, TFT_RST);
+GFXcanvas16*    screen = nullptr;      // null → no RAM for it; serial status only
+size_t          shotPos = SIZE_MAX;    // bytes of a "shot" already sent; MAX = idle
+
+#define C_BG      0x0000
+#define C_BAR     0x2124
+#define C_TEXT    0xFFFF
+#define C_DIM     0x8C51
+#define C_GREEN   0x07E8
+#define C_AMBER   0xFD20
+#define C_BLUE    0x3D9F
+#define C_RED     0xF8A2
+
+void textAt(int x, int y, uint8_t size, uint16_t col, const char* s) {
+  screen->setTextSize(size); screen->setTextColor(col); screen->setCursor(x, y);
+  screen->print(s);
+}
+void textRight(int xr, int y, uint8_t size, uint16_t col, const char* s) {
+  textAt(xr - (int)strlen(s) * 6 * size, y, size, col, s);   // built-in font: 6 px/char
+}
+
+void screenBegin() {
+  pinMode(TFT_BL, OUTPUT); digitalWrite(TFT_BL, HIGH);
+  SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
+  tft.init(TFT_H, TFT_W);              // panel is 135x240 portrait natively
+  tft.setSPISpeed(40000000);
+  tft.setRotation(TFT_ROTATION);
+  tft.fillScreen(C_BG);
+  screen = new GFXcanvas16(TFT_W, TFT_H);
+  if (!screen->getBuffer()) {
+    delete screen; screen = nullptr;
+    Serial.println("[TFT] no RAM for the frame buffer: screen stays blank");
+    return;
+  }
+  uint32_t t0 = micros();             // the blit is what loop() pays once a second
+  tft.drawRGBBitmap(0, 0, screen->getBuffer(), TFT_W, TFT_H);
+  Serial.printf("[TFT] ready, frame blit %lu us\n", (unsigned long)(micros() - t0));
+}
+
+void drawStatus(const char* state, uint16_t col, int clients,
+                uint32_t rxHz, uint32_t txHz, uint32_t drHz) {
+  if (!screen || shotPos != SIZE_MAX) return;   // a "shot" is reading this frame
+  char b[24];
+  screen->fillScreen(C_BG);
+  // header: which network to join
+  screen->fillRect(0, 0, TFT_W, 22, C_BAR);
+  textAt(6, 4, 2, C_TEXT, apName.c_str());
+  snprintf(b, sizeof(b), "ch%d", AP_CHANNEL);
+  textRight(TFT_W - 6, 4, 2, C_DIM, b);
+  // link state
+  screen->fillCircle(14, 40, 7, col);
+  textAt(30, 29, 3, col, state);
+  // CSI frames per second, big
+  snprintf(b, sizeof(b), "%lu", (unsigned long)min(rxHz, (uint32_t)9999));
+  textRight(170, 60, 6, rxHz ? C_TEXT : C_DIM, b);
+  textAt(178, 64, 2, C_DIM, "CSI");
+  textAt(178, 86, 2, C_DIM, "fr/s");
+  // clients joined · frames shipped to the PC · ring overflows
+  snprintf(b, sizeof(b), "PC %d", clients);
+  textAt(6, 115, 2, clients ? C_TEXT : C_DIM, b);
+  if (drHz) { snprintf(b, sizeof(b), "DROP %lu/s", (unsigned long)drHz); textRight(TFT_W - 6, 115, 2, C_RED, b); }
+  else      { snprintf(b, sizeof(b), "UDP %lu/s",  (unsigned long)txHz); textRight(TFT_W - 6, 115, 2, txHz ? C_TEXT : C_DIM, b); }
+  tft.drawRGBBitmap(0, 0, screen->getBuffer(), TFT_W, TFT_H);
+}
+
+// "shot\n" on the serial port → stream the frame buffer back, a FIFO's worth
+// per loop() pass so the CSI drain never stalls behind a 64 KB serial write
+void serviceShot() {
+  static char cmd[8]; static uint8_t cl = 0;
+  if (shotPos == SIZE_MAX) {
+    while (Serial.available()) {                 // never wait for the rest of a line
+      char c = (char)Serial.read();
+      if (c != '\n' && c != '\r') { if (cl < sizeof(cmd) - 1) cmd[cl++] = c; continue; }
+      cmd[cl] = 0; bool shot = cl && !strcmp(cmd, "shot"); cl = 0;
+      if (shot && screen) { Serial.printf("SHOT %d %d\n", TFT_W, TFT_H); shotPos = 0; break; }
+    }
+    if (shotPos == SIZE_MAX) return;
+  }
+  const size_t total = (size_t)TFT_W * TFT_H * 2;
+  size_t n = min((size_t)Serial.availableForWrite(), total - shotPos);
+  Serial.write((const uint8_t*)screen->getBuffer() + shotPos, n);
+  shotPos += n;
+  if (shotPos == total) { Serial.print("\nEND\n"); shotPos = SIZE_MAX; }
+}
+
 void setup() {
   Serial.begin(115200); delay(150);
   Serial.println("\n" FW_VERSION);
+  screenBegin();                       // before WiFi: the frame buffer needs 64 KB in one piece
 
   apName = "SGP_TURBO_" + String((uint16_t)(ESP.getEfuseMac() & 0xFFFF), HEX);
   WiFi.onEvent(onWifiEvent);
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(apName.c_str(), nullptr, AP_CHANNEL);
+  apOk = WiFi.softAP(apName.c_str(), nullptr, AP_CHANNEL);
+  if (!apOk) Serial.println("[AP] softAP FAILED");
   WiFi.setSleep(WIFI_PS_NONE);                 // never sleep — maximum throughput
   esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
   esp_wifi_set_max_tx_power(80);               // strong link = cleaner CSI
@@ -188,7 +300,7 @@ void loop() {
     if (++burst >= 64) break;          // yield to WiFi after a burst, then come back
   }
 
-  // 3) status LED + rate print (once a second; cheap)
+  // 3) status screen + rate print (once a second; one ~19 ms blit)
   static unsigned long tStat = 0;
   static uint32_t lastSent = 0, lastRx = 0, lastDropped = 0;
   unsigned long now = millis();
@@ -197,8 +309,20 @@ void loop() {
     uint32_t dr = __atomic_load_n(&dropped, __ATOMIC_RELAXED);
     uint32_t hz = framesSent - lastSent, rxHz = rx - lastRx, drHz = dr - lastDropped;
     lastSent = framesSent; lastRx = rx; lastDropped = dr; tStat = now;
-    Serial.printf("%s  clients %d  CSI %lu/s  sent %lu/s  dropped %lu\n",
-                  live ? "STREAMING" : "WAITING  ", WiFi.softAPgetStationNum(),
-                  (unsigned long)rxHz, (unsigned long)hz, (unsigned long)drHz);
+    int clients = WiFi.softAPgetStationNum();
+    const char* state; uint16_t col;
+    if (!apOk)              { state = "AP DOWN";   col = C_RED;   }
+    else if (!csiOk)        { state = "CSI ERROR"; col = C_RED;   }
+    else if (live && !rxHz) { state = "NO CSI";    col = C_RED;   }   // pinged, radio silent
+    else if (live)          { state = "STREAMING"; col = C_GREEN; }
+    else if (clients)       { state = "JOINED";    col = C_AMBER; }   // waiting for pings
+    else                    { state = "NO CLIENT"; col = C_BLUE;  }
+    drawStatus(state, col, clients, rxHz, hz, drHz);
+    if (shotPos == SIZE_MAX)                       // don't splice text into a shot
+      Serial.printf("%-9s  clients %d  CSI %lu/s  sent %lu/s  dropped %lu\n", state, clients,
+                    (unsigned long)rxHz, (unsigned long)hz, (unsigned long)drHz);
   }
+
+  // 4) serial screenshot, a chunk per pass
+  serviceShot();
 }
