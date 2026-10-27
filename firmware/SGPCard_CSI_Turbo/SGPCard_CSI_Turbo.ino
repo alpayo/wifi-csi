@@ -58,7 +58,7 @@
 #define TFT_DC        16
 #define TFT_RST       23
 #define TFT_BL        4
-#define TFT_ROTATION  1          // landscape; 3 = the same, turned 180°
+#define TFT_ROTATION  3          // landscape; 1 = the same, turned 180°
 #define TFT_W         240
 #define TFT_H         135
 
