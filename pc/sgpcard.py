@@ -22,7 +22,7 @@ Run:   python3 sgpcard.py            (card at 192.168.4.1, default)
        python3 sgpcard.py --node A=192.168.4.1 --node B=192.168.1.51   (multi)
        python3 sgpcard.py --host 0.0.0.0   (open the House map from a phone on your network)
 """
-import argparse, asyncio, http.server, json, math, os, socket, struct, threading, time, webbrowser
+import argparse, asyncio, http, http.server, ipaddress, json, math, os, socket, struct, threading, time, urllib.parse, webbrowser
 from collections import deque
 import numpy as np
 
@@ -656,22 +656,43 @@ def page_hosts(bind):
         return bind, None
     return bind, bind
 
-def ws_origins(bind, lan, port):
-    """Origins of the pages this server serves. The websocket accepts commands
-    that delete recordings, so a page from anywhere else must not connect."""
-    hosts = set()
-    if bind in WILDCARD or bind in LOOPBACK:
-        hosts.update(LOOPBACK)
+def _same_computer_name(h):
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        pass
+    return h == "localhost" or h.endswith(".local") or h == socket.gethostname().lower()
+
+def ws_origin_ok(origin, host_header, bind, port):
+    """Is this handshake from a page this server served? The websocket accepts
+    commands that delete recordings, so a page from anywhere else must not
+    connect. A page reaches the socket on the same name it was loaded from, so
+    its Origin must be http://<Host's name>:<port>, and that name must be an
+    address or a name of this computer — never a name some other site controls."""
+    if origin is None:
+        return True
+    own = set(LOOPBACK) if bind in WILDCARD or bind in LOOPBACK else set()
     if bind not in WILDCARD:
-        hosts.add(bind)
-    if lan:
-        hosts.add(lan)
-    return sorted("http://%s:%d" % (url_host(h), port) for h in hosts) + [None]
+        own.add(bind)
+    if origin in {"http://%s:%d" % (url_host(h), port) for h in own}:
+        return True
+    try:
+        o = urllib.parse.urlsplit(origin)
+        h = urllib.parse.urlsplit("//" + (host_header or "")).hostname
+        if o.scheme != "http" or o.port != port or not o.hostname or o.hostname != h:
+            return False
+    except ValueError:
+        return False
+    return _same_computer_name(h)
 
 def ws_server():
-    import websockets
-    return websockets.serve(ws_handler, HOST, PORT + 1, ping_interval=None,
-                            origins=ws_origins(HOST, HOST_INFO.get('lan'), PORT))
+    from websockets.asyncio.server import serve
+
+    def check_origin(conn, request):
+        if not ws_origin_ok(request.headers.get("Origin"), request.headers.get("Host"), HOST, PORT):
+            return conn.respond(http.HTTPStatus.FORBIDDEN, "page not served by this computer\n")
+    return serve(ws_handler, HOST, PORT + 1, ping_interval=None, process_request=check_origin)
 
 async def ws_main():
     async with ws_server():

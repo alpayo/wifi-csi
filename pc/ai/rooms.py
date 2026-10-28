@@ -265,7 +265,7 @@ def load_recordings(data_dir):
     out = {}
     d = recordings_dir(data_dir)
     if not os.path.isdir(d):
-        return out
+        return []
     for fn in sorted(os.listdir(d)):
         if not fn.endswith(".npz"):
             continue

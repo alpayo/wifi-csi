@@ -476,17 +476,6 @@ class ServedAddressTests(unittest.TestCase):
         with mock.patch.object(sgpcard, "my_lan_ip", return_value="10.0.0.7"):
             self.assertEqual(sgpcard.page_hosts("0.0.0.0"), ("127.0.0.1", "10.0.0.7"))
 
-    def test_websocket_accepts_only_this_servers_pages(self):
-        import sgpcard
-        lan = sgpcard.ws_origins("0.0.0.0", "10.0.0.7", 8799)
-        for o in ("http://127.0.0.1:8799", "http://localhost:8799", "http://10.0.0.7:8799"):
-            self.assertIn(o, lan)
-        for o in ("http://evil.example", "http://10.0.0.7:8000", "http://0.0.0.0:8799"):
-            self.assertNotIn(o, lan)
-        self.assertNotIn("http://10.0.0.7:8799", sgpcard.ws_origins("127.0.0.1", None, 8799))
-        self.assertEqual(sgpcard.ws_origins("192.168.1.5", "192.168.1.5", 8799),
-                         ["http://192.168.1.5:8799", None])
-
 
 @unittest.skipUnless(importlib.util.find_spec("websockets"), "websockets not installed")
 class WebsocketOriginTests(unittest.TestCase):
@@ -526,6 +515,41 @@ class WebsocketOriginTests(unittest.TestCase):
                 except websockets.exceptions.InvalidHandshake:
                     return False
         return asyncio.run(go())
+
+    def _handshake(self, host, origin):
+        """HTTP status of a websocket handshake carrying these Host / Origin headers."""
+        sg = self.sg
+
+        async def go():
+            async with sg.ws_server():
+                r, w = await asyncio.open_connection("127.0.0.1", sg.PORT + 1)
+                w.write(("GET / HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
+                         "Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                         "Sec-WebSocket-Version: 13\r\n%s\r\n"
+                         % (host, "Origin: %s\r\n" % origin if origin else "")).encode())
+                await w.drain()
+                status = int((await r.readline()).split()[1])
+                w.close()
+                return status
+        return asyncio.run(go())
+
+    def test_the_page_connects_however_this_computer_was_reached(self):
+        p = self.sg.PORT
+        for name in ("127.0.0.1", "localhost", "192.168.4.2", "10.0.0.7", "mac-mini.local",
+                     socket.gethostname().lower(), "[::1]"):
+            with self.subTest(name=name):
+                self.assertEqual(self._handshake("%s:%d" % (name, p + 1), "http://%s:%d" % (name, p)), 101)
+        self.assertEqual(self._handshake("127.0.0.1:%d" % (p + 1), None), 101)
+
+    def test_pages_from_elsewhere_are_refused(self):
+        p = self.sg.PORT
+        for host, origin in (("127.0.0.1", "http://evil.example"),
+                             ("evil.example", "http://evil.example:%d" % p),
+                             ("10.0.0.7", "http://192.168.4.2:%d" % p),
+                             ("10.0.0.7", "http://10.0.0.7:8000"),
+                             ("10.0.0.7", "https://10.0.0.7:%d" % p)):
+            with self.subTest(host=host, origin=origin):
+                self.assertEqual(self._handshake("%s:%d" % (host, p + 1), origin), 403)
 
     def test_a_page_from_another_site_cannot_wipe_the_recordings(self):
         self.assertFalse(self._discard_from("http://evil.example"))
