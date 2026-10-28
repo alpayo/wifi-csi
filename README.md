@@ -75,10 +75,33 @@ WiFi uses **OFDM**, which splits one channel into dozens of narrow **sub‑carri
 
 ### 1. Flash the card
 
-Board: **ESP32‑S3** · Partition **Huge APP** · Flash **8 MB** · Library: **Adafruit NeoPixel**. Two sketches:
+Two sketches:
 
 - **`firmware/SGPCard_CSI_Node/`** — the standard node (single card in AP mode, or set `STATION_MODE 1` + your WiFi to use several cards on one network).
+  Board: **ESP32‑S3** (SGP Card Mini) · Partition **Huge APP** · Flash **8 MB** · Library: **Adafruit NeoPixel**.
 - **`firmware/SGPCard_CSI_Turbo/`** — a single‑device, maximum‑rate, maximum‑sensitivity build that makes its own WiFi.
+  Board: **LilyGO T‑Display** (classic ESP32, 16 MB flash, 1.14" ST7789 screen) · Partition **Huge APP** · Flash **16 MB** · Library: **Adafruit ST7735 and ST7789 Library**.
+  The screen shows the network to join, the link state (`NO CLIENT` → `JOINED` → `STREAMING`), CSI frames per second, connected clients and UDP frames sent per second.
+
+#### Building and flashing the Turbo sketch for a LilyGO T‑Display
+
+Tested with `arduino-cli` 1.5.1, the Espressif `esp32:esp32` core 3.3.12 and Adafruit ST7735 and ST7789 Library 1.12.0 (which pulls in Adafruit GFX Library 1.13.0 and Adafruit BusIO 1.17.4).
+
+```bash
+brew install arduino-cli
+arduino-cli config init
+arduino-cli config set board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli core update-index
+arduino-cli core install esp32:esp32@3.3.12
+arduino-cli lib install "Adafruit ST7735 and ST7789 Library@1.12.0"
+
+FQBN=esp32:esp32:lilygo_t_display:FlashSize=16M,PartitionScheme=huge_app,UploadSpeed=460800
+arduino-cli compile --fqbn $FQBN firmware/SGPCard_CSI_Turbo
+arduino-cli upload  --fqbn $FQBN -p /dev/cu.wchusbserial* firmware/SGPCard_CSI_Turbo
+```
+
+The board's CH340K USB‑serial bridge is unreliable at the default 921600 baud, hence `UploadSpeed=460800`.
+On macOS the port appears as `/dev/cu.wchusbserial*` once the WCH CH34x driver is installed and allowed.
 
 ### 2. Run the program
 
