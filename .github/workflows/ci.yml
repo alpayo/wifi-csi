@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    name: Firmware (arduino-cli compile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ESP32_CORE: esp32:esp32@3.3.12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: 1.5.1
+      - name: Install esp32 core and libraries
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install "$ESP32_CORE" --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install "Adafruit ST7735 and ST7789 Library@1.12.0" "Adafruit GFX Library@1.13.0" "Adafruit BusIO@1.17.4" "Adafruit NeoPixel@1.15.5"
+      - name: Compile SGPCard_CSI_Turbo (LilyGO T-Display)
+        run: arduino-cli compile --warnings default -b esp32:esp32:lilygo_t_display:FlashSize=16M,PartitionScheme=huge_app firmware/SGPCard_CSI_Turbo
+      - name: Compile SGPCard_CSI_Node (SGP Card Mini, ESP32-S3)
+        run: arduino-cli compile --warnings default -b esp32:esp32:esp32s3:FlashSize=8M,PartitionScheme=huge_app firmware/SGPCard_CSI_Node
+
+  python:
+    name: Python (compile + tests, no torch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r pc/requirements.txt
+      - name: Byte-compile every module
+        run: python -m compileall -q pc
+      - name: Run tests
+        run: python -m unittest discover -s pc/tests -v
