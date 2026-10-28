@@ -284,7 +284,6 @@ class NodeEngine:
         tu = np.linspace(ts[0], ts[-1], L)
         # pick the subcarrier with most 0.1-0.5 Hz energy
         best, bestP, bestBpm = -1, 0.0, 0.0
-        sig_all = A - np.mean(A, axis=0)
         # limit work: test up to 24 subcarriers
         cols = range(A.shape[1]) if A.shape[1] <= 24 else np.linspace(0, A.shape[1]-1, 24).astype(int)
         freqs = np.fft.rfftfreq(L, d=1.0 / fs)

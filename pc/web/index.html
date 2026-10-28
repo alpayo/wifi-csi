@@ -44,7 +44,8 @@ background:linear-gradient(90deg,var(--navy),#1082d4)}
 .win .wtb{display:flex;align-items:center;height:19px;padding:0 2px 0 5px;color:#fff;font-weight:700;font-size:11px;
 background:linear-gradient(90deg,var(--navy),#1082d4)}
 .win .wtb .x{margin-left:auto;width:16px;height:15px;font-size:10px}
-.crt{background:#050b08;color:var(--ac);font-family:var(--mono);margin:3px;padding:9px 10px}
+.crt{background:#050b08;color:var(--ac);font-family:var(--mono);margin:3px;padding:9px 10px;
+-webkit-font-smoothing:auto}   /* unsmoothed Menlo turns a small "m" into a solid block */
 #left{top:56px;left:8px;width:208px}
 #right{top:56px;right:8px;width:224px}
 #bottom{left:50%;transform:translateX(-50%);bottom:34px;width:min(440px,42vw)}
@@ -271,10 +272,11 @@ select.w95{font-family:var(--win);font-size:11px;padding:1px 2px;color:#000}
     <div class="setrow"><label>Motion gain</label><input type="range" id="sMot" min="2" max="14" step="0.5"><span class="val" id="vMot">—</span></div>
     <div class="setrow"><label>Smoothing</label><input type="range" id="sSm" min="0.1" max="0.92" step="0.02"><span class="val" id="vSm">—</span></div>
     <div class="setrow"><label>Range cal.</label><input type="range" id="sCal" min="-2" max="2" step="0.1"><span class="val" id="vCal">—</span></div>
-    <div class="setrow"><label>2-Meter mode</label>
+    <div class="setrow" style="flex-wrap:wrap;row-gap:2px"><label>2-Meter mode</label>
       <input type="checkbox" id="sLos" style="accent-color:#1082d4;flex:0 0 auto">
-      <span style="flex:1;font-size:9px;color:#4f8f6c;letter-spacing:.04em">device↔computer, you in between</span>
-      <input type="number" id="sLosD" min="0.5" max="6" step="0.1" value="2" style="width:42px;background:#02110a;border:1px solid #16402c;color:var(--ac);font-family:var(--mono);font-size:10px;text-align:right">
+      <!-- the hint gets its own line: on the row it pushed the distance box out of the window -->
+      <span style="order:1;flex:1 0 100%;padding-left:91px;font-size:9px;color:#4f8f6c;letter-spacing:.04em">device↔computer, you in between</span>
+      <input type="number" id="sLosD" min="0.5" max="6" step="0.1" value="2" style="width:42px;margin-left:auto;background:#02110a;border:1px solid #16402c;color:var(--ac);font-family:var(--mono);font-size:10px;text-align:right">
       <span class="val" style="flex:0 0 14px">m</span></div>
     <div class="row" style="margin-top:8px;gap:6px">
       <button class="w95 raised" id="btnTurbo" title="single-device high-rate + max sensitivity">⚡ Turbo</button>
