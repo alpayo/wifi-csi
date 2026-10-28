@@ -47,6 +47,7 @@ A moving (or even just breathing) body reflects and absorbs 2.4 GHz energy, subt
 - ✅ A **3D view** placing the person at the estimated position with an uncertainty cone.
 - ⚠️ **Exact (x, y) position** is *not* physically possible with one single antenna. Add **2–3 more cards** as anchors and the program runs **least‑squares trilateration** when ≥3 nodes see the person. One card = range + presence; three cards = real coordinates.
 - 🏠 **Which room** someone is moving in can only be *learned*: walk each room once or twice from the House map page and it measures how well your rooms separate, merging the ones it can't tell apart.
+  With one card it names the one strongest source of movement, not each room's occupancy on its own, and someone sitting or lying still reads as nobody.
 
 ## Features
 

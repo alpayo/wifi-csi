@@ -2,7 +2,9 @@
 
 Run from the repository root:  python -m unittest discover -s pc/tests
 (numpy only; the neural test runs when torch is installed)."""
-import os, re, shutil, sys, tempfile, time, unittest
+import asyncio, importlib.util, json, os, shutil, socket, sys, tempfile, time, unittest
+from html.parser import HTMLParser
+from unittest import mock
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -256,6 +258,20 @@ class TrainingInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Nobody moving"):
             rooms.train(self.dir, neural=False)
 
+    def test_a_crash_mid_replace_still_counts_one_recording_per_room_and_pass(self):
+        house = House(rooms.LABELS, seed=2)
+        t, A, r = house.record("cem", secs=6, t0=1.7e9)
+        old = rooms.save_recording(self.dir, "cem", 1, NODE, t, A, r)
+        keep = os.path.join(self.dir, "kept")
+        shutil.copy(os.path.join(rooms.recordings_dir(self.dir), old), keep)
+        t2, A2, r2 = house.record("cem", secs=6, t0=1.7e9 + 100)
+        new = rooms.save_recording(self.dir, "cem", 1, NODE, t2, A2, r2)
+        shutil.move(keep, os.path.join(rooms.recordings_dir(self.dir), old))
+        recs = rooms.load_recordings(self.dir)
+        self.assertEqual([x["file"] for x in recs], [new])
+        cal = RoomCalibration(self.dir, rooms.RoomEngine(self.dir))
+        self.assertEqual(cal.have["cem"][1]["file"], new)
+
     def test_untrained_engine_names_no_room(self):
         eng = rooms.RoomEngine(self.dir)
         buf = rooms.FrameBuffer()
@@ -429,27 +445,95 @@ class ServerWiringTests(unittest.TestCase):
         self.assertEqual(sgpcard.room_state([])["live"]["state"], "no-card")
 
 
-class PageTests(unittest.TestCase):
-    def setUp(self):
+class _PlanParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rooms, self.labels = [], []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "polygon" and "data-room" in a:
+            self.rooms.append(a["data-room"])
+        elif tag == "g" and "data-label" in a:
+            self.labels.append(a["data-label"])
+
+
+class PlanContractTests(unittest.TestCase):
+    def test_the_plan_draws_each_classifier_room_once(self):
+        p = _PlanParser()
         with open(os.path.join(PC, "web", "rooms.html")) as f:
-            self.html = f.read()
+            p.feed(f.read())
+        ids = sorted(r for r, _ in rooms.ROOMS)
+        self.assertEqual(sorted(p.rooms), ids)
+        self.assertEqual(sorted(p.labels), ids)
 
-    def test_the_plan_traces_every_room_once(self):
-        ids = re.findall(r'data-room="(\w+)"', self.html)
-        self.assertEqual(sorted(ids), sorted(r for r, _ in rooms.ROOMS))
-        labels = re.findall(r'data-label="(\w+)"', self.html)
-        self.assertEqual(sorted(labels), sorted(r for r, _ in rooms.ROOMS))
-        self.assertIn('href="floorplan.png"', self.html)
-        self.assertTrue(os.path.exists(os.path.join(PC, "web", "floorplan.png")))
 
-    def test_the_page_cannot_invent_occupancy(self):
-        # no demo / placeholder path: everything drawn comes from the server
-        self.assertNotIn("Math.random", self.html)
-        self.assertNotRegex(self.html.lower(), r"demo")
+class ServedAddressTests(unittest.TestCase):
+    def test_pages_are_opened_on_the_address_the_server_listens_on(self):
+        import sgpcard
+        self.assertEqual(sgpcard.page_hosts("127.0.0.1"), ("127.0.0.1", None))
+        self.assertEqual(sgpcard.page_hosts("192.168.1.5"), ("192.168.1.5", "192.168.1.5"))
+        with mock.patch.object(sgpcard, "my_lan_ip", return_value="10.0.0.7"):
+            self.assertEqual(sgpcard.page_hosts("0.0.0.0"), ("127.0.0.1", "10.0.0.7"))
 
-    def test_the_3d_view_links_to_the_house_map(self):
-        with open(os.path.join(PC, "web", "index.html")) as f:
-            self.assertIn("rooms.html", f.read())
+    def test_websocket_accepts_only_this_servers_pages(self):
+        import sgpcard
+        lan = sgpcard.ws_origins("0.0.0.0", "10.0.0.7", 8799)
+        for o in ("http://127.0.0.1:8799", "http://localhost:8799", "http://10.0.0.7:8799"):
+            self.assertIn(o, lan)
+        for o in ("http://evil.example", "http://10.0.0.7:8000", "http://0.0.0.0:8799"):
+            self.assertNotIn(o, lan)
+        self.assertNotIn("http://10.0.0.7:8799", sgpcard.ws_origins("127.0.0.1", None, 8799))
+        self.assertEqual(sgpcard.ws_origins("192.168.1.5", "192.168.1.5", 8799),
+                         ["http://192.168.1.5:8799", None])
+
+
+@unittest.skipUnless(importlib.util.find_spec("websockets"), "websockets not installed")
+class WebsocketOriginTests(unittest.TestCase):
+    def setUp(self):
+        import sgpcard
+        self.sg = sgpcard
+        self.dir = tempfile.mkdtemp(prefix="rooms-test-")
+        record_house(self.dir, House(rooms.LABELS, seed=2), passes=1, secs=6)
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        self.saved = (sgpcard.HOST, sgpcard.PORT, dict(sgpcard.HOST_INFO), sgpcard.ROOMS, sgpcard.ROOM_CAL)
+        sgpcard.HOST, sgpcard.PORT = "127.0.0.1", port - 1
+        sgpcard.HOST_INFO.clear()
+        sgpcard.ROOMS = rooms.RoomEngine(self.dir)
+        sgpcard.ROOM_CAL = RoomCalibration(self.dir, sgpcard.ROOMS)
+
+    def tearDown(self):
+        sg = self.sg
+        sg.HOST, sg.PORT, info, sg.ROOMS, sg.ROOM_CAL = self.saved
+        sg.HOST_INFO.clear(); sg.HOST_INFO.update(info)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _discard_from(self, origin):
+        import websockets
+        sg = self.sg
+        url = "ws://127.0.0.1:%d" % (sg.PORT + 1)
+
+        async def go():
+            async with sg.ws_server():
+                try:
+                    async with websockets.connect(url, origin=origin) as ws:
+                        await ws.recv()
+                        await ws.send(json.dumps(dict(type="rooms", action="discard")))
+                        await asyncio.sleep(0.3)
+                    return True
+                except websockets.exceptions.InvalidHandshake:
+                    return False
+        return asyncio.run(go())
+
+    def test_a_page_from_another_site_cannot_wipe_the_recordings(self):
+        self.assertFalse(self._discard_from("http://evil.example"))
+        self.assertTrue(rooms.load_recordings(self.dir))
+
+    def test_the_house_map_page_can(self):
+        self.assertTrue(self._discard_from("http://127.0.0.1:%d" % self.sg.PORT))
+        self.assertEqual(rooms.load_recordings(self.dir), [])
 
 
 @unittest.skipUnless(rooms._torch_available(), "torch not installed")

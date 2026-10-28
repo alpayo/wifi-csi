@@ -55,9 +55,11 @@ class RoomCalibration:
             try:
                 z = np.load(os.path.join(d, fn), allow_pickle=False)
                 lab, p = str(z["label"]), int(z["pass_no"])
-                t = z["t"]
+                t, started = z["t"], float(z["started"])
+                if have.get(lab, {}).get(p, {}).get("at", -np.inf) >= started:
+                    continue
                 have.setdefault(lab, {})[p] = dict(secs=round(float(t[-1] - t[0]), 1),
-                                                   frames=int(len(t)), at=float(z["started"]),
+                                                   frames=int(len(t)), at=started,
                                                    node=str(z["node"]), file=fn)
             except Exception:
                 continue

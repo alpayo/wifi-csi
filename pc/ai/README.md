@@ -51,7 +51,8 @@ Rooms are recognised as learned fingerprints, and how well they separate is meas
 - Accuracy is scored by holding out whole recordings (the other pass of each room), so it can't come from recognising the recording session.
 - Rooms the data can't tell apart are **merged** into one hatched zone on the map; rooms with low accuracy get a dashed outline. Neither is ever shown as a sure answer.
 - The confidence shown is calibrated on the held-out recordings and never claims more certainty than the number of recordings supports.
-- It reports where someone is **moving**; a person sitting perfectly still may read as "nobody moving". Several people moving in different rooms still give one answer.
+- With one card (one radio link, until more cards are added) it names the **one strongest source of movement**, not each room's occupancy on its own: a second person moving elsewhere won't show.
+- It senses **movement**: someone sitting or lying still reads as "nobody moving".
 - Doors, furniture or a moved card change the fingerprints: re-record the affected rooms and train again.
 
 ## Credits (adapted model recipe, MIT)

@@ -641,9 +641,40 @@ def serve_http(webdir):
     httpd = http.server.ThreadingHTTPServer((HOST, PORT), H)
     httpd.serve_forever()
 
-async def ws_main():
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+WILDCARD = ("0.0.0.0", "::", "")
+
+def url_host(h):
+    return "[%s]" % h if ":" in h else h
+
+def page_hosts(bind):
+    """(address this computer opens the pages on, address other devices on the
+    network use — None when the UI is served to this computer only)."""
+    if bind in WILDCARD:
+        return "127.0.0.1", my_lan_ip()
+    if bind in LOOPBACK:
+        return bind, None
+    return bind, bind
+
+def ws_origins(bind, lan, port):
+    """Origins of the pages this server serves. The websocket accepts commands
+    that delete recordings, so a page from anywhere else must not connect."""
+    hosts = set()
+    if bind in WILDCARD or bind in LOOPBACK:
+        hosts.update(LOOPBACK)
+    if bind not in WILDCARD:
+        hosts.add(bind)
+    if lan:
+        hosts.add(lan)
+    return sorted("http://%s:%d" % (url_host(h), port) for h in hosts) + [None]
+
+def ws_server():
     import websockets
-    async with websockets.serve(ws_handler, HOST, PORT + 1, ping_interval=None):
+    return websockets.serve(ws_handler, HOST, PORT + 1, ping_interval=None,
+                            origins=ws_origins(HOST, HOST_INFO.get('lan'), PORT))
+
+async def ws_main():
+    async with ws_server():
         await asyncio.Future()
 
 
@@ -665,7 +696,8 @@ def main():
     args = ap.parse_args()
 
     HOST = args.host
-    HOST_INFO.update(bind=HOST, lan=my_lan_ip() if HOST not in ("127.0.0.1", "localhost") else None)
+    local, lan = page_hosts(HOST)
+    HOST_INFO.update(bind=HOST, local=local, lan=lan)
     ROOMS = RoomEngine(args.room_data)
     ROOM_CAL = RoomCalibration(args.room_data, ROOMS)
 
@@ -747,15 +779,15 @@ def main():
             time.sleep(0.05)
     threading.Thread(target=dsp_loop, daemon=True).start()
 
-    url = f"http://127.0.0.1:{PORT}/index.html"
+    url = f"http://{url_host(local)}:{PORT}/index.html"
     print("=" * 60)
     print("  SGP SGPCard Command")
     print("  nodes:", ", ".join(f"{e.name}@{lk.addr[0]}" for e, lk in zip(ENGINES, LINKS)))
     print("  open:", url)
-    print("  house map:", f"http://127.0.0.1:{PORT}/rooms.html",
+    print("  house map:", f"http://{url_host(local)}:{PORT}/rooms.html",
           f"· room model: {ROOMS.mode}" + (f" ({ROOMS.error})" if ROOMS.error else ""))
-    if HOST_INFO.get('lan'):
-        print("  phone:", f"http://{HOST_INFO['lan']}:{PORT}/rooms.html")
+    if lan and lan != local:
+        print("  phone:", f"http://{url_host(lan)}:{PORT}/rooms.html")
     print("=" * 60)
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()

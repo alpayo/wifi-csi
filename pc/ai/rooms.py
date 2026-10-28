@@ -260,8 +260,9 @@ def save_recording(data_dir, label, pass_no, node, t, A, rssi):
 
 
 def load_recordings(data_dir):
-    """Every saved recording: dicts with label, pass, node, t, A, file."""
-    out = []
+    """Every saved recording: dicts with label, pass, node, t, A, file. Only the
+    newest recording of each room and pass counts."""
+    out = {}
     d = recordings_dir(data_dir)
     if not os.path.isdir(d):
         return out
@@ -273,12 +274,15 @@ def load_recordings(data_dir):
             lab = str(z["label"])
             if lab not in LABELS:
                 continue
-            out.append(dict(label=lab, pass_no=int(z["pass_no"]), node=str(z["node"]),
-                            started=float(z["started"]), t=z["t"].astype(np.float64),
-                            A=z["amp"].astype(np.float32), file=fn))
+            key, started = (lab, int(z["pass_no"])), float(z["started"])
+            if key in out and out[key]["started"] >= started:
+                continue
+            out[key] = dict(label=lab, pass_no=key[1], node=str(z["node"]),
+                            started=started, t=z["t"].astype(np.float64),
+                            A=z["amp"].astype(np.float32), file=fn)
         except Exception:
             continue                       # a half-written or foreign file
-    return out
+    return sorted(out.values(), key=lambda r: r["file"])
 
 
 def build_dataset(recs, active=None, raw_steps=None):

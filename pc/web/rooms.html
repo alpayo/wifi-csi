@@ -226,6 +226,7 @@ padding:56px 8px 34px;background:#00000080;overflow-y:auto}
           <div class="big sm" id="rcTop">—</div>
           <div class="bar sunken"><i id="rcConf"></i></div>
           <div class="note" id="rcSub" style="margin-top:4px">—</div></div>
+        <div class="note" id="rcScope">With one card (one radio link, until more are added) this names the <b>one strongest source of movement</b>, not each room on its own — a second person elsewhere won't show. It senses <b>movement</b>: someone sitting or lying still reads as nobody.</div>
         <div class="note" id="rcNote"></div>
         <h4>Live probability · measured accuracy</h4>
         <div class="prow hd"><span class="n">class</span><span></span><span class="pp">now</span><span class="cv">CV acc</span></div>
@@ -289,7 +290,7 @@ padding:56px 8px 34px;background:#00000080;overflow-y:auto}
       <p>One card and one computer make <b>a single radio link</b>. A single link cannot locate a person — there is no geometry to triangulate with.</p>
       <p style="margin-top:8px">What it can do is recognise a <b>learned fingerprint</b>: someone moving in a given room disturbs a particular set of the radio's reflection paths, which shows up as a characteristic pattern across the 64 WiFi subcarriers. That pattern has to be <b>taught</b> before it can be recognised, so the map knows nothing about rooms until you walk each one (Calibrate).</p>
       <p style="margin-top:8px">After training it <b>measures itself</b>: each room is recorded twice, and accuracy is scored on the recording the model did not train on. Rooms the data can't tell apart are <b>merged</b> into one hatched zone, and rooms with low accuracy get a dashed outline — the map never shows them as a sure answer.</p>
-      <p style="margin-top:8px">It reports where someone is <b>moving</b>. A person sitting perfectly still may read as "nobody moving"; the whole-home presence and breathing readings still see them. With several people moving in different rooms it can only name one place. Closing or opening doors, moving furniture or moving the card changes the fingerprints — re-record the affected rooms and train again.</p>
+      <p style="margin-top:8px">It reports where someone is <b>moving</b>. Someone sitting or lying still reads as "nobody moving"; the whole-home presence and breathing readings may still see them. With one card it names only the one strongest source of movement, not each room on its own, so a second person moving elsewhere won't show; more cards add more links. Closing or opening doors, moving furniture or moving the card changes the fingerprints — re-record the affected rooms and train again.</p>
       <p style="margin-top:8px">The hallway counts as part of the Entrance, and the balcony behind the glass as part of the Kitchen.</p>
     </div>
   </div>
@@ -633,7 +634,7 @@ function render(){
   renderPlan(R,alive);
   renderClassifier(R,alive);
   renderHome(n,alive);
-  const isLocal=['127.0.0.1','localhost','::1',''].indexOf(location.hostname)>=0;
+  const isLocal=['127.0.0.1','localhost','[::1]',''].indexOf(location.hostname)>=0;
   renderCal(R,isLocal);
   renderAcc(R);
 }
