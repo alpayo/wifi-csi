@@ -135,7 +135,7 @@ select.w95{font-family:var(--win);font-size:11px;padding:1px 2px;color:#000}
     <span class="tbtn raised">_</span><span class="tbtn raised">&#9723;</span><span class="tbtn raised">&#10005;</span>
   </div>
   <div id="menu">
-    <span><u>F</u>ile</span><span id="mnuView"><u>V</u>iew</span><span id="mnuRoom"><u>R</u>oom</span><span id="mnuNode"><u>N</u>odes</span><span id="mnuCam"><u>C</u>amera</span><span id="mnuDemo"><u>D</u>emo</span><span id="mnuHelp"><u>H</u>elp</span>
+    <span><u>F</u>ile</span><span id="mnuView"><u>V</u>iew</span><span id="mnuRoom"><u>R</u>oom</span><span id="mnuNode"><u>N</u>odes</span><span id="mnuCam"><u>C</u>amera</span><span id="mnuMap">House <u>m</u>ap</span><span id="mnuDemo"><u>D</u>emo</span><span id="mnuHelp"><u>H</u>elp</span>
   </div>
 </div>
 <div id="roomPop" class="menupop raised">
@@ -1011,6 +1011,7 @@ function updatePoseSkel(){
   poseBoneGeo.attributes.position.needsUpdate=true;
 }
 $('mnuCam').addEventListener('click',e=>{e.stopPropagation();viewPop.style.display='none';roomPop.style.display='none';toggleCam();});
+$('mnuMap').addEventListener('click',()=>{location.href='rooms.html';});   // House map: which room someone is moving in
 
 // ── camera image filters (night vision, thermal, etc.) ──
 const CAMF={

@@ -46,6 +46,7 @@ A moving (or even just breathing) body reflects and absorbs 2.4 GHz energy, subt
 - ✅ **Presence, motion, breathing rate, activity and a distance estimate** — reliable with a single card.
 - ✅ A **3D view** placing the person at the estimated position with an uncertainty cone.
 - ⚠️ **Exact (x, y) position** is *not* physically possible with one single antenna. Add **2–3 more cards** as anchors and the program runs **least‑squares trilateration** when ≥3 nodes see the person. One card = range + presence; three cards = real coordinates.
+- 🏠 **Which room** someone is moving in can only be *learned*: walk each room once or twice from the House map page and it measures how well your rooms separate, merging the ones it can't tell apart.
 
 ## Features
 
@@ -55,6 +56,7 @@ A moving (or even just breathing) body reflects and absorbs 2.4 GHz energy, subt
 | 🧍 **Presence & motion** | z‑scored against a live, self‑learning empty‑room baseline |
 | 🫁 **Breathing** | band‑pass + FFT → breaths per minute, with a scrolling micro‑Doppler spectrogram |
 | 🧠 **Activity AI** | CSINet (1D CNN + bidirectional GRU): empty / still / walking / fast / fall — rules mode works instantly, neural mode trains on your hardware |
+| 🏠 **House map** | floor plan that lights up the room someone is moving in, from per‑room CSI fingerprints you record from the page; reports its own measured accuracy (see [`pc/ai/README.md`](pc/ai/README.md#room-classifier-house-map)) |
 | 📐 **Multi‑node localization** | drag each card onto the floor; ≥3 → least‑squares trilateration |
 | 🔍 **Auto‑detection** | cards on the same WiFi appear by themselves, deduplicated by MAC |
 | 📏 **2‑Meter Mode** | device ↔ computer line‑of‑sight, person crosses between |
@@ -113,6 +115,8 @@ cd pc
 
 - **One card:** join the card's WiFi `SGP_SGPCARD_xxxx` (or `SGP_TURBO_xxxx`) and run the program — it auto‑detects the card.
 - **Several cards:** flash each with `STATION_MODE 1` pointing at one WiFi (e.g. a phone hotspot in 2.4 GHz), run the program, and the cards appear by themselves in the **Nodes** panel. Drag each to its real spot; with ≥3 you get real (x, y) coordinates.
+- **House map:** open **House map** from the menu (or `http://127.0.0.1:8799/rooms.html`) and follow **Calibrate** to teach it your rooms.
+  To carry a phone while you walk the rooms, start with `./run.command --host 0.0.0.0` and open the address it prints on the phone (same network).
 
 > No hardware yet? `python3 simnode.py` in one terminal and `python3 sgpcard.py --node 127.0.0.1` in another runs a synthetic breathing person end‑to‑end.
 
@@ -135,8 +139,10 @@ firmware/
 pc/
   sgpcard.py           DSP + AI + trilateration + web/websocket server
   simnode.py           software card simulator (no hardware needed)
-  ai/                  CSINet model, rules/neural engine, record + train
-  web/                 three.js 3D visualizer (self‑contained, works offline)
+  ai/                  CSINet model, rules/neural engine, record + train,
+                       room classifier + guided calibration (rooms.py, room_calib.py)
+  web/                 three.js 3D visualizer + House map (rooms.html, floorplan.png)
+  tests/               python -m unittest discover -s pc/tests
 docs/                  screenshots and the video thumbnail
 ```
 
