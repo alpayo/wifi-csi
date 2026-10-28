@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SGP CSI WIFI — House map</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--ac:#39ff9e;--ac2:#27d1ff;--amber:#ffb43a;--bad:#ff4d4d;
+--gray:#c0c0c0;--navy:#00007b;--mono:ui-monospace,'SF Mono',Menlo,'Roboto Mono',monospace;
+--win:'Tahoma','MS Sans Serif','Segoe UI',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:#0a1410;font-family:var(--win);font-size:12px;
+color:#000;-webkit-font-smoothing:none;cursor:default}
+body{padding:54px 8px 36px;overflow-x:hidden}
+/* ── win95 bevels (same as the 3D view) ── */
+.raised{background:var(--gray);box-shadow:inset -1px -1px #000,inset 1px 1px #fff,inset -2px -2px #808080,inset 2px 2px #dfdfdf}
+.sunken{box-shadow:inset 1px 1px #808080,inset -1px -1px #fff,inset 2px 2px #000,inset -2px -2px #dfdfdf}
+#bar{position:fixed;top:0;left:0;right:0;z-index:20;padding:3px 3px 0}
+.tb{display:flex;align-items:center;gap:6px;height:22px;padding:0 3px;color:#fff;
+background:linear-gradient(90deg,var(--navy),#1082d4)}
+.tb .ico{width:14px;height:14px;flex:0 0 14px;background:#0a1a12;box-shadow:inset 0 0 0 1px #39ff9e;position:relative}
+.tb .ico:after{content:"";position:absolute;inset:4px;background:var(--ac);border-radius:50%}
+.tb .ttl{font-weight:700;font-size:12px;letter-spacing:.02em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:var(--bad);box-shadow:inset 0 0 0 1px #0006}
+.dot.on{background:var(--ac);box-shadow:0 0 6px var(--ac)}
+#menu{display:flex;height:21px;align-items:center;padding:1px 2px;border-top:1px solid #dfdfdf;overflow:hidden}
+#menu a,#menu span{padding:2px 9px;cursor:pointer;color:#000;text-decoration:none;white-space:nowrap}
+#menu a:hover,#menu span:hover{background:var(--navy);color:#fff}
+#menu u{text-decoration:underline}
+.win{padding:2px;min-width:0}
+.wtb{display:flex;align-items:center;gap:6px;min-height:19px;padding:0 2px 0 5px;color:#fff;font-weight:700;font-size:11px;
+background:linear-gradient(90deg,var(--navy),#1082d4)}
+.wtb .sp{flex:1}
+.wtb .x{width:16px;height:15px;font-size:10px;color:#000;display:grid;place-items:center;cursor:pointer}
+.crt{background:#050b08;color:var(--ac);font-family:var(--mono);margin:3px;padding:9px 10px;
+-webkit-font-smoothing:auto}   /* unsmoothed Menlo turns a small "m" into a solid block */
+.lab{font-size:9px;letter-spacing:.14em;color:#4f8f6c;text-transform:uppercase}
+.big{font-size:30px;line-height:1.05;color:var(--ac);text-shadow:0 0 8px #39ff9e55;margin-top:1px}
+.big.sm{font-size:20px}.u{font-size:11px;color:#4f8f6c}
+.row{margin-bottom:11px}
+.bar{height:11px;margin-top:4px;background:#0a1a12}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac2),var(--ac));transition:width .2s}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;border-bottom:1px dotted #1e3a2c}
+.kv .k{color:#4f8f6c}.kv .v{color:#bfead0;text-align:right}
+.vac{color:var(--ac)!important}.vam{color:var(--amber)!important}.vbad{color:#ff6b6b!important}
+h4{font-size:9px;letter-spacing:.14em;color:#4f8f6c;text-transform:uppercase;margin:12px 0 5px;font-weight:400}
+.note{font-size:10px;line-height:1.5;color:#7fd8a8;letter-spacing:.02em}
+.note b{color:var(--ac);font-weight:400}
+.warn{color:var(--amber)}
+button.w95{font-family:var(--win);font-size:11px;padding:3px 10px;color:#000;cursor:pointer;border:none}
+button.w95:active:not(:disabled){box-shadow:inset 1px 1px #000,inset -1px -1px #fff,inset 2px 2px #808080}
+button.w95:disabled{color:#808080;text-shadow:1px 1px #fff;cursor:default}
+button.big95{font-size:13px;font-weight:700;padding:9px 14px;min-height:40px;width:100%}
+.blink{animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:.35}}
+/* ── layout ── */
+#grid{display:grid;grid-template-columns:minmax(0,1fr) 316px;gap:8px;align-items:start;max-width:1500px;margin:0 auto}
+#planWin{grid-row:span 3;position:sticky;top:52px}   /* the map stays in view while the side column scrolls */
+#side{display:grid;gap:8px;min-width:0}
+@media (max-width:880px){
+  body{padding:54px 6px 36px}
+  #grid{grid-template-columns:minmax(0,1fr)}
+  #planWin{grid-row:auto;position:static}
+}
+/* ── floor plan ── */
+#planBox{position:relative;padding:6px}
+#plan{display:block;width:100%;height:auto;max-height:calc(100vh - 168px);min-height:280px}
+.room{fill:var(--ac);fill-opacity:.03;stroke:#1f6b47;stroke-width:2;stroke-linejoin:round;transition:fill-opacity .35s,stroke .35s}
+.room.top{stroke:var(--ac);stroke-width:3.5;filter:url(#glow)}
+.room.amb{fill:var(--amber)}
+.room.amb.top{stroke:var(--amber)}
+.room.low{stroke-dasharray:10 7}
+.hatch{fill:url(#hatch);pointer-events:none;display:none}
+.hatch.on{display:inline}
+.rname{font-family:var(--mono);font-size:19px;fill:#7fd8a8;text-anchor:middle;paint-order:stroke;stroke:#050b08;stroke-width:4px;pointer-events:none}
+.rname.top{fill:#eafff4}
+.rpct{font-family:var(--mono);font-size:17px;fill:var(--ac);text-anchor:middle;paint-order:stroke;stroke:#050b08;stroke-width:4px;pointer-events:none}
+.rpct.amb{fill:var(--amber)}
+.rcv{font-family:var(--mono);font-size:12px;fill:#4f8f6c;text-anchor:middle;paint-order:stroke;stroke:#050b08;stroke-width:3px;pointer-events:none;letter-spacing:.06em}
+#star{fill:var(--ac2);filter:url(#glow)}
+.ping{fill:none;stroke:var(--ac2);stroke-width:2;transform-box:fill-box;transform-origin:center;animation:ping 2.8s linear infinite;opacity:0}
+.ping.p2{animation-delay:1.4s}
+@keyframes ping{0%{transform:scale(.2);opacity:.6}100%{transform:scale(3.2);opacity:0}}
+.cardlab{font-family:var(--mono);font-size:12px;fill:var(--ac2);letter-spacing:.14em;text-anchor:middle;paint-order:stroke;stroke:#050b08;stroke-width:3px}
+#planMsg{display:none;border:1px solid var(--amber);background:#140f03;color:var(--amber);font-size:11px;line-height:1.55;padding:6px 10px;margin-bottom:6px}
+#planMsg b{color:var(--amber);letter-spacing:.12em;font-weight:400;margin-right:8px}
+#planMsg.ok{border-color:#1f6b47;background:#03100a;color:var(--ac)}
+#planMsg.ok b{color:var(--ac)}
+#legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 4px 2px;font-size:10px;color:#7fd8a8;letter-spacing:.03em}
+#legend span{display:inline-flex;align-items:center;gap:5px}
+#legend i{display:inline-block;width:16px;height:10px;border:2px solid var(--ac);background:#39ff9e55}
+#legend i.m{border-color:var(--amber);background:repeating-linear-gradient(135deg,#ffb43a99 0 2px,transparent 2px 5px)}
+#legend i.l{border:2px dashed var(--amber);background:#ffb43a33}
+#legend i.s{border:none;background:none;width:auto;height:auto;color:var(--ac2);font-style:normal}
+/* ── classifier list ── */
+.prow{display:grid;grid-template-columns:88px minmax(0,1fr) 34px 52px;align-items:center;gap:6px;font-size:11px;padding:2px 0}
+.prow .n{color:#bfead0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .pb{height:7px;background:#0a1a12}
+.prow .pb i{display:block;height:100%;width:0;background:var(--ac);transition:width .2s}
+.prow.amb .pb i{background:var(--amber)}
+.prow .pp{color:var(--ac);text-align:right}
+.prow .cv{color:#4f8f6c;text-align:right;font-size:10px}
+.prow.hd{color:#4f8f6c;font-size:9px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.prow.hd .n{color:#4f8f6c}
+.tag{display:inline-block;font-size:9px;letter-spacing:.1em;padding:1px 5px;margin-left:4px;color:#000;background:var(--amber);vertical-align:middle}
+.tag.g{background:var(--ac)}
+/* ── calibration ── */
+#calStep{border:1px solid #16402c;padding:10px;margin-bottom:10px;background:#03100a}
+#calStep .now{font-size:22px;line-height:1.15;color:var(--ac);text-shadow:0 0 8px #39ff9e55;margin:3px 0 6px;word-break:break-word}
+#calStep .cd{font-size:52px;line-height:1;color:var(--amber);text-align:center;margin:4px 0;text-shadow:0 0 10px #ffb43a66}
+#calStep .rec{color:#ff6b6b;letter-spacing:.14em;font-size:10px}
+.cgrid{display:grid;grid-template-columns:minmax(0,1fr) 62px 62px;gap:3px;align-items:center;font-size:11px}
+.cgrid .h{color:#4f8f6c;font-size:9px;letter-spacing:.1em;text-transform:uppercase;text-align:center}
+.cgrid .h:first-child{text-align:left}
+.cgrid .n{color:#bfead0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell{font-family:var(--mono);font-size:10px;height:24px;border:1px solid #16402c;background:#02110a;color:#2c4639;cursor:pointer;width:100%}
+.cell.ok{color:var(--ac);border-color:#1f6b47}
+.cell.next{color:var(--amber);border-color:var(--amber)}
+.cell.act{color:#000;background:var(--amber);border-color:var(--amber)}
+.cell:hover:not(:disabled){border-color:var(--ac2);color:var(--ac2)}
+.cell:disabled{cursor:default}
+#trainMsg{margin-top:6px;min-height:15px}
+/* ── accuracy / help dialogs ── */
+.dlg{position:fixed;inset:0;z-index:30;display:none;align-items:flex-start;justify-content:center;
+padding:56px 8px 34px;background:#00000080;overflow-y:auto}
+.dlg.on{display:flex}
+.dlg .win{width:min(760px,100%)}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{color:#4f8f6c;font-weight:400;font-size:9px;letter-spacing:.08em;text-transform:uppercase;text-align:right;padding:3px 4px;border-bottom:1px solid #1e3a2c}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{color:#bfead0;text-align:right;padding:3px 4px;border-bottom:1px dotted #1e3a2c;white-space:nowrap}
+.cmwrap{overflow-x:auto;margin-top:4px}
+.cm{border-collapse:collapse;font-size:10px}
+.cm th{color:#4f8f6c;font-weight:400;padding:2px 3px;font-size:9px;letter-spacing:.04em;white-space:nowrap}
+.cm th.r{text-align:right;padding-right:6px}
+.cm td{width:38px;min-width:38px;height:24px;text-align:center;color:#bfead0;border:1px solid #0a1a12}
+.zl{font-size:11px;line-height:1.6;color:#bfead0}
+/* ── status bar ── */
+#statusbar{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;gap:2px;padding:2px}
+.scell{font-size:11px;padding:2px 8px;color:#000;font-family:var(--win);white-space:nowrap}
+.scell.grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.scell b{font-family:var(--mono);color:#00007b}
+@media (max-width:520px){.scell.opt{display:none}}
+</style></head>
+<body>
+
+<!-- title + menu bar -->
+<div id="bar" class="raised">
+  <div class="tb">
+    <span class="ico"></span>
+    <span class="ttl">SGP CSI WIFI — House map · which room is someone moving in?</span>
+    <span class="dot" id="link" style="margin:0 6px"></span>
+  </div>
+  <div id="menu">
+    <a href="index.html"><u>3</u>D view</a><span id="mnuCal"><u>C</u>alibrate</span><span id="mnuAcc"><u>A</u>ccuracy</span><span id="mnuHelp"><u>H</u>elp</span>
+  </div>
+</div>
+
+<div id="grid">
+  <!-- FLOOR PLAN window -->
+  <div id="planWin" class="win raised">
+    <div class="wtb">Floor plan · single-link room fingerprints<span class="sp"></span><span id="planMode">—</span></div>
+    <div class="crt sunken" id="planBox">
+      <div id="planMsg"></div>
+      <svg id="plan" viewBox="135 30 865 900" role="img" aria-label="House floor plan with the room the classifier reports">
+        <defs>
+          <!-- the floor plan's dark line work -> green CRT ink; the light background and labels drop out -->
+          <filter id="ink" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+            <feColorMatrix type="matrix" values="0 0 0 0 .22  0 0 0 0 1  0 0 0 0 .62  -1.7 -5.72 -.58 0 1.6"/>
+          </filter>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="4" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <clipPath id="planClip"><rect x="135" y="30" width="865" height="900"/></clipPath>
+          <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="4" height="12" fill="#ffb43a" fill-opacity=".55"/>
+          </pattern>
+        </defs>
+        <image href="floorplan.png" x="0" y="0" width="1161" height="954" filter="url(#ink)" opacity=".75" clip-path="url(#planClip)"/>
+        <g id="rooms">
+          <polygon class="room" data-room="bedroom"  points="338,162 561,176 549,374 319,364"/>
+          <polygon class="room" data-room="bath2"    points="347,66 482,73 482,157 345,152"/>
+          <polygon class="room" data-room="bath1"    points="486,73 633,79 630,170 484,165"/>
+          <polygon class="room" data-room="cem"      points="643,80 857,96 852,257 633,243"/>
+          <polygon class="room" data-room="deniz"    points="633,253 852,267 845,419 623,405"/>
+          <polygon class="room" data-room="ece"      points="623,414 884,430 898,566 633,609"/>
+          <polygon class="room" data-room="kitchen"  points="637,619 807,595 852,590 900,570 940,665 980,775 730,902 680,770 655,685"/>
+          <polygon class="room" data-room="entrance" points="566,172 628,174 620,528 640,690 485,729 470,610 552,607 551,530"/>
+          <polygon class="room" data-room="bath3"    points="465,404 548,406 552,607 470,607"/>
+          <polygon class="room" data-room="living"   points="172,386 460,392 466,590 485,729 192,800"/>
+        </g>
+        <g id="hatches"></g>
+        <g id="labels">
+          <g data-label="bedroom"  transform="translate(452,300)"></g>
+          <g data-label="bath2"    transform="translate(414,104)"></g>
+          <g data-label="bath1"    transform="translate(558,112)"></g>
+          <g data-label="cem"      transform="translate(746,160)"></g>
+          <g data-label="deniz"    transform="translate(738,330)"></g>
+          <g data-label="ece"      transform="translate(760,500)"></g>
+          <g data-label="kitchen"  transform="translate(790,712)"></g>
+          <g data-label="entrance" transform="translate(562,668)"></g>
+          <g data-label="bath3"    transform="translate(509,494)"></g>
+          <g data-label="living"   transform="translate(320,580)"></g>
+        </g>
+        <!-- the card, where the star is on the plan -->
+        <g transform="translate(364,258)">
+          <circle class="ping" r="16"/><circle class="ping p2" r="16"/>
+          <path id="star" d="M0,-22 L6.2,-8.5 21,-6.8 10,3.4 13,18 0,10.6 -13,18 -10,3.4 -21,-6.8 -6.2,-8.5Z"/>
+          <text class="cardlab" y="40">CARD</text>
+        </g>
+      </svg>
+      <div id="legend">
+        <span><i></i>room the classifier reports (brighter = surer)</span>
+        <span><i class="m"></i>merged: the data can't tell these apart</span>
+        <span><i class="l"></i>low measured accuracy</span>
+        <span><i class="s">★</i>the card</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="side">
+    <!-- ROOM CLASSIFIER window -->
+    <div class="win raised">
+      <div class="wtb">Room classifier<span class="sp"></span><span id="rcModeT">—</span></div>
+      <div class="crt sunken">
+        <div class="row"><div class="lab">Someone moving in</div>
+          <div class="big sm" id="rcTop">—</div>
+          <div class="bar sunken"><i id="rcConf"></i></div>
+          <div class="note" id="rcSub" style="margin-top:4px">—</div></div>
+        <div class="note" id="rcScope">With one card (one radio link, until more are added) this names the <b>one strongest source of movement</b>, not each room on its own — a second person elsewhere won't show. It senses <b>movement</b>: someone sitting or lying still reads as nobody.</div>
+        <div class="note" id="rcNote"></div>
+        <h4>Live probability · measured accuracy</h4>
+        <div class="prow hd"><span class="n">class</span><span></span><span class="pp">now</span><span class="cv">CV acc</span></div>
+        <div id="rcList"></div>
+        <div style="margin-top:9px"><button class="w95 raised" id="btnAcc">Accuracy &amp; confusion…</button></div>
+      </div>
+    </div>
+
+    <!-- WHOLE HOME window -->
+    <div class="win raised">
+      <div class="wtb">Whole home · works without training</div>
+      <div class="crt sunken">
+        <div class="row" style="display:flex;gap:14px;align-items:flex-end">
+          <div style="flex:1"><div class="lab">Presence</div><div class="big" id="hPres">—</div></div>
+          <div style="flex:1"><div class="lab">Breathing</div><div class="big sm"><span id="hBpm">—</span> <span class="u">bpm</span></div></div>
+        </div>
+        <div class="row"><div class="lab">Motion</div><div class="bar sunken"><i id="hMot"></i></div></div>
+        <div class="kv"><span class="k">Distance to subject</span><span class="v" id="hRng">—</span></div>
+        <div class="kv"><span class="k">Breathing conf.</span><span class="v" id="hBconf">—</span></div>
+        <div class="kv"><span class="k">Link RSSI</span><span class="v" id="hRssi">—</span></div>
+        <div class="kv"><span class="k">CSI rate</span><span class="v" id="hFs">—</span></div>
+        <div class="kv"><span class="k">Ambient baseline</span><span class="v" id="hCal">—</span></div>
+      </div>
+    </div>
+
+    <!-- CALIBRATION window -->
+    <div class="win raised" id="calWin">
+      <div class="wtb">Calibrate rooms · teach it your house</div>
+      <div class="crt sunken">
+        <div class="note" id="calIntro">—</div>
+        <div class="note warn" id="calPhone" style="margin-top:6px;display:none"></div>
+        <h4>Step</h4>
+        <div id="calStep">—</div>
+        <div class="note warn" id="calErr" style="display:none;margin:-4px 0 8px"></div>
+        <h4 style="display:flex;justify-content:space-between"><span>Recordings</span><span id="calCount">—</span></h4>
+        <div class="cgrid" id="calGrid"></div>
+        <h4>Train</h4>
+        <button class="w95 raised" id="btnTrain" style="width:100%;min-height:30px">Train room model</button>
+        <div class="note" id="trainMsg"></div>
+        <div style="margin-top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap" id="discardRow">
+          <button class="w95 raised" id="btnDiscard">Start over…</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCURACY dialog -->
+<div class="dlg" id="accDlg">
+  <div class="win raised">
+    <div class="wtb">Measured accuracy · what the data says this link can tell apart<span class="sp"></span><span class="x raised" data-close="accDlg">&#10005;</span></div>
+    <div class="crt sunken" id="accBody"></div>
+  </div>
+</div>
+
+<!-- HELP dialog -->
+<div class="dlg" id="helpDlg">
+  <div class="win raised">
+    <div class="wtb">How the House map works<span class="sp"></span><span class="x raised" data-close="helpDlg">&#10005;</span></div>
+    <div class="crt sunken note" style="font-size:11px;line-height:1.65">
+      <p>One card and one computer make <b>a single radio link</b>. A single link cannot locate a person — there is no geometry to triangulate with.</p>
+      <p style="margin-top:8px">What it can do is recognise a <b>learned fingerprint</b>: someone moving in a given room disturbs a particular set of the radio's reflection paths, which shows up as a characteristic pattern across the 64 WiFi subcarriers. That pattern has to be <b>taught</b> before it can be recognised, so the map knows nothing about rooms until you walk each one (Calibrate).</p>
+      <p style="margin-top:8px">After training it <b>measures itself</b>: each room is recorded twice, and accuracy is scored on the recording the model did not train on. Rooms the data can't tell apart are <b>merged</b> into one hatched zone, and rooms with low accuracy get a dashed outline — the map never shows them as a sure answer.</p>
+      <p style="margin-top:8px">It reports where someone is <b>moving</b>. Someone sitting or lying still reads as "nobody moving"; the whole-home presence and breathing readings may still see them. With one card it names only the one strongest source of movement, not each room on its own, so a second person moving elsewhere won't show; more cards add more links. Closing or opening doors, moving furniture or moving the card changes the fingerprints — re-record the affected rooms and train again.</p>
+      <p style="margin-top:8px">The hallway counts as part of the Entrance, and the balcony behind the glass as part of the Kitchen.</p>
+    </div>
+  </div>
+</div>
+
+<!-- status bar -->
+<div id="statusbar" class="raised">
+  <span class="scell sunken grow" id="status">— no data —</span>
+  <span class="scell sunken opt"><b>WiFi CSI</b></span>
+  <span class="scell sunken" id="sMode">rooms: —</span>
+</div>
+
+<script>
+// ───────── websocket (same feed as the 3D view) ─────────
+let latest=null, lastRx=0, WS=null;
+function connect(){
+  const host=location.hostname||'127.0.0.1';
+  const ws=new WebSocket('ws://'+host+':'+((parseInt(location.port)||8799)+1));
+  WS=ws;
+  ws.onmessage=ev=>{latest=JSON.parse(ev.data);lastRx=performance.now();};
+  ws.onclose=()=>setTimeout(connect,1200);
+  ws.onerror=()=>ws.close();
+}
+function wsSend(o){try{if(WS&&WS.readyState===1)WS.send(JSON.stringify(o));}catch(e){}}
+connect();
+
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const pct=x=>(x==null||isNaN(x))?'—':Math.round(x*100)+'%';
+const SVGNS='http://www.w3.org/2000/svg';
+const MODE_TXT={untrained:'untrained',knn:'numpy k-NN',neural:'neural CSINet'};
+
+// ───────── floor plan: rooms + labels ─────────
+const polys={}, labs={}, hatches={};
+document.querySelectorAll('#rooms polygon').forEach(p=>{
+  const id=p.dataset.room; polys[id]=p;
+  const h=document.createElementNS(SVGNS,'polygon');
+  h.setAttribute('points',p.getAttribute('points')); h.setAttribute('class','hatch');
+  $('hatches').appendChild(h); hatches[id]=h;
+});
+document.querySelectorAll('#labels g').forEach(g=>{
+  const t=n=>{const e=document.createElementNS(SVGNS,'text');g.appendChild(e);return e;};
+  const nm=t(), pc=t(), cv=t();
+  nm.setAttribute('class','rname'); pc.setAttribute('class','rpct'); pc.setAttribute('y','21');
+  cv.setAttribute('class','rcv'); cv.setAttribute('y','38');
+  labs[g.dataset.label]={nm,pc,cv};
+});
+function setText(el,s){if(el.textContent!==s)el.textContent=s;}
+
+function planMsg(title,body,ok){
+  const m=$('planMsg');
+  if(!title){m.style.display='none';return;}
+  m.style.display='block'; m.classList.toggle('ok',!!ok);
+  const h='<b>'+esc(title)+'</b>'+esc(body||'');
+  if(m.innerHTML!==h)m.innerHTML=h;
+}
+
+// which zone each class is in, and how the data rates it
+function zoneInfo(rep){
+  const z={}; if(!rep)return z;
+  rep.zones.forEach((zn,i)=>zn.members.forEach(l=>z[l]={i,members:zn.members,reliable:zn.reliable,recall:zn.recall}));
+  return z;
+}
+// every class in one zone: the recordings separate nothing (its "probability" is trivially 1)
+function noSeparation(rep){return !!rep&&rep.zones.length===1;}
+function cvOf(rep,label){if(!rep)return null;const r=rep.perClass.find(c=>c.label===label);return r?r.recall:null;}
+function nameOf(R,l){const i=R.live.labels?R.live.labels.indexOf(l):-1;return i>=0?R.live.names[i]:l;}
+function zoneName(R,members){
+  const rooms=members.filter(l=>l!=='nobody').map(l=>nameOf(R,l));
+  if(members.length===1)return nameOf(R,members[0]);
+  if(members.indexOf('nobody')>=0)return rooms.length?'nobody moving / '+rooms.join(' + '):'nobody moving';
+  return rooms.join(' + ');
+}
+
+function renderPlan(R,alive){
+  const rep=R&&R.report, live=R&&R.live, zi=zoneInfo(rep);
+  const isLive=alive&&live&&live.state==='live';
+  $('planMode').textContent=live?(MODE_TXT[live.mode]||live.mode):'—';
+  for(const id in polys){
+    const p=polys[id], L=labs[id], z=zi[id];
+    const merged=!!(z&&z.members.length>1), low=!!(z&&!merged&&!z.reliable);
+    let fo=.03, top=false, prob=null;
+    if(isLive&&z&&!noSeparation(rep)){
+      prob=live.zoneProbs[z.i]; top=(z.i===live.zone)&&(live.top.indexOf('nobody')<0);
+      fo=top?(.10+.55*prob):(.03+.30*prob);
+    }
+    p.style.fillOpacity=fo.toFixed(3);
+    p.classList.toggle('top',top);
+    p.classList.toggle('amb',merged||low);
+    p.classList.toggle('low',low);
+    hatches[id].classList.toggle('on',merged);
+    setText(L.nm,nameOfId(id)); L.nm.classList.toggle('top',top);
+    setText(L.pc,prob==null?'':pct(prob)); L.pc.classList.toggle('amb',merged||low);
+    const cv=rep?cvOf(rep,id):null;
+    setText(L.cv,rep?(merged?'MERGED':('CV '+pct(cv))):'');
+  }
+  // messages over the plan
+  if(!alive){planMsg('NO DATA','The page is not receiving anything from sgpcard.py. Is the program running?');return;}
+  if(!live||live.state==='no-card'){planMsg('NO CARD','No card is connected yet — join the card\'s WiFi (SGP_TURBO_xxxx / SGP_SGPCARD_xxxx).');return;}
+  if(live.state==='untrained'){planMsg('NO ROOM TRAINING DATA YET','Rooms can\'t be identified until each one is recorded — use Calibrate. The whole-home readings already work.');return;}
+  if(live.state==='no-signal'){planMsg('NO CSI FROM THE CARD','Nothing is shown without live CSI — check that this computer is on the card\'s WiFi.');return;}
+  if(live.state==='other-card'){planMsg('MODEL IS FOR ANOTHER CARD','Trained on card '+(live.node||'?')+' — connect that card, or record and train again for this one.');return;}
+  if(live.state==='error'){planMsg('ROOM CLASSIFIER ERROR',live.error||'');return;}
+  const tz=live.top||[];
+  if(noSeparation(rep)){planMsg('CAN\'T TELL ROOMS APART','On held-out recordings no room separated from any other or from nobody moving ('+
+    pct(rep.accuracy)+' measured, '+pct(rep.chance)+' would be chance). Record the rooms again walking each one, then train again.');return;}
+  if(tz.length===1&&tz[0]==='nobody'){planMsg('NOBODY MOVING · '+pct(live.conf),'',true);return;}
+  if(tz.indexOf('nobody')>=0){planMsg('CAN\'T TELL · '+pct(live.conf),'Nobody moving looks the same as movement in '+zoneName(R,tz.filter(l=>l!=='nobody'))+' on this link.');return;}
+  planMsg(null);
+}
+const ROOM_NAMES={bedroom:'Bedroom',bath1:'Bath 1',bath2:'Bath 2',bath3:'Bath 3',cem:'Cem',deniz:'Deniz',ece:'Ece',living:'Living Room',kitchen:'Kitchen',entrance:'Entrance'};
+function nameOfId(id){return ROOM_NAMES[id]||id;}
+
+// ───────── room classifier panel ─────────
+function renderClassifier(R,alive){
+  const live=R&&R.live, rep=R&&R.report;
+  $('rcModeT').textContent=live?('mode: '+(MODE_TXT[live.mode]||live.mode)):'—';
+  const isLive=alive&&live&&live.state==='live';
+  if(!live||live.mode==='untrained'||live.state==='untrained'){
+    setText($('rcTop'),'— untrained —'); $('rcTop').style.color='#4f8f6c';
+    $('rcConf').style.width='0';
+    setText($('rcSub'),'No room training data yet.');
+    $('rcNote').innerHTML='Record every room with <b>Calibrate</b> (below), then <b>Train</b>. Until then the map shows no room — only the whole-home readings, which need no training.';
+  } else if(!isLive){
+    setText($('rcTop'),'— no signal —'); $('rcTop').style.color='#4f8f6c'; $('rcConf').style.width='0';
+    setText($('rcSub'),live.state==='other-card'?('model trained on card '+(live.node||'?')):'waiting for live CSI');
+    $('rcNote').innerHTML='';
+  } else if(noSeparation(rep)){
+    setText($('rcTop'),'CAN\'T TELL'); $('rcTop').style.color='var(--amber)';
+    $('rcConf').style.width='0';
+    setText($('rcSub'),'the recordings separate no room on this link');
+    $('rcNote').innerHTML='Measured <b>'+pct(rep.accuracy)+'</b> accuracy (chance '+pct(rep.chance)+') on '+esc(rep.scheme)+'.';
+  } else {
+    const tz=live.top, single=tz.length===1;
+    const txt=single&&tz[0]==='nobody'?'NOBODY MOVING':zoneName(R,tz).toUpperCase();
+    setText($('rcTop'),txt);
+    const amb=!single||!live.reliable;
+    $('rcTop').style.color=amb?'var(--amber)':'var(--ac)';
+    $('rcConf').style.width=Math.round(live.conf*100)+'%';
+    $('rcConf').style.background=amb?'var(--amber)':'';
+    setText($('rcSub'),'confidence '+pct(live.conf)+(single?'':' · merged zone')+(single&&!live.reliable?' · low measured accuracy':''));
+    $('rcNote').innerHTML=rep?('Measured '+'<b>'+pct(rep.accuracy)+'</b> accuracy (chance '+pct(rep.chance)+') on '+esc(rep.scheme)+'.'):'';
+  }
+  // per-class rows
+  const labels=(live&&live.labels)||[], zi=zoneInfo(rep);
+  const box=$('rcList');
+  if(box.children.length!==labels.length){
+    box.innerHTML=labels.map(l=>'<div class="prow" data-l="'+esc(l)+'"><span class="n"></span><span class="pb sunken"><i></i></span><span class="pp"></span><span class="cv"></span></div>').join('');
+  }
+  [...box.children].forEach((row,i)=>{
+    const l=labels[i], z=zi[l], merged=!!(z&&z.members.length>1), low=!!(z&&!merged&&!z.reliable);
+    row.classList.toggle('amb',merged||low);
+    setText(row.children[0],live.names[i]);
+    const p=isLive&&live.probs?live.probs[i]:null;
+    row.children[1].firstChild.style.width=p==null?'0':Math.round(p*100)+'%';
+    setText(row.children[2],p==null?'—':pct(p));
+    setText(row.children[3],rep?(merged?'merged':pct(cvOf(rep,l))):'—');
+    row.children[3].title=merged?('can\'t be told apart from '+z.members.filter(m=>m!==l).map(m=>nameOf(R,m)).join(', ')):'';
+  });
+}
+
+// ───────── whole-home readings (no training needed) ─────────
+function renderHome(n,alive){
+  if(!alive||!n||!n.online){['hPres','hBpm','hRng','hBconf','hRssi','hFs','hCal'].forEach(id=>setText($(id),'—'));$('hMot').style.width='0';return;}
+  setText($('hPres'),Math.round(n.presence*100)+'%');
+  $('hPres').style.color=n.presence>0.55?'#ff6b6b':(n.presence>0.35?'var(--amber)':'var(--ac)');
+  $('hMot').style.width=Math.round(n.motion*100)+'%';
+  setText($('hBpm'),(n.bpmConf>0.3&&n.bpm>5)?n.bpm.toFixed(0):'—');
+  setText($('hRng'),n.presence>0.45?n.rangeM.toFixed(1)+' m':'—');
+  setText($('hBconf'),Math.round(n.bpmConf*100)+'%');
+  setText($('hRssi'),n.rssi+' dBm');
+  setText($('hFs'),n.fs+' Hz');
+  setText($('hCal'),n.calibrated?'locked':'calibrating…');
+  $('hCal').className='v '+(n.calibrated?'vac':'vam');
+}
+
+// ───────── calibration ─────────
+let calKey='', discardArm=false;
+function startRec(label,pass){wsSend({type:'rooms',action:'record',label:label,pass:pass});}
+function renderCal(R,isLocal){
+  const C=R&&R.cal; if(!C)return;
+  const n=C.classes.length;
+  const intro='Walk each room for <b>'+C.recS+' s</b> while moving around, twice: pass 1 through the whole house, then pass 2. '+
+    (n*C.passes)+' recordings, about <b>'+C.totalMin+' min</b> in total. Everyone else stays still meanwhile. '+
+    'Recordings are saved as you go — you can stop and resume, or redo any one of them.';
+  if($('calIntro').innerHTML!==intro)$('calIntro').innerHTML=intro;
+  // phone tip
+  const host=R.host||{};
+  let tip='';
+  if(host.lan)tip='On your phone (same network): http://'+host.lan+':'+location.port+'/rooms.html';
+  else if(isLocal)tip='Walking with a phone? Restart with  ./run.command --host 0.0.0.0  and open the address it prints on the phone.';
+  $('calPhone').style.display=tip?'block':'none'; setText($('calPhone'),tip);
+  // step panel — rebuilt only when the step changes (a button replaced mid-click
+  // would swallow the click); countdown and progress are updated in place
+  const A=C.active, nx=C.next;
+  const key=A?(A.phase+A.label+A.pass_no):(nx?('next'+nx.label+nx.pass_no):('done'+C.done));
+  if(key!==calKey){
+    calKey=key;
+    let h='';
+    if(A&&A.phase==='countdown'){
+      h='<div class="lab">Get ready · pass '+A.pass_no+'</div><div class="now">'+esc(A.name)+'</div>'+
+        '<div class="cd" id="cdNum"></div><div class="note">'+esc(A.hint)+'</div>'+
+        '<button class="w95 raised big95" style="margin-top:9px" id="btnCancel">Cancel</button>';
+    } else if(A){
+      h='<div class="rec blink">● RECORDING · pass '+A.pass_no+'</div><div class="now">'+esc(A.name)+'</div>'+
+        '<div class="note">'+esc(A.hint)+'</div><div class="bar sunken" style="height:14px;margin:8px 0 4px"><i id="recBar"></i></div>'+
+        '<div class="note" id="recLeft"></div>'+
+        '<button class="w95 raised big95" style="margin-top:9px" id="btnCancel">Cancel</button>';
+    } else if(nx){
+      const nm=C.classes.find(c=>c.label===nx.label);
+      h='<div class="lab">Next · pass '+nx.pass_no+' of '+C.passes+'</div><div class="now">'+esc(nm.name)+'</div>'+
+        '<div class="note">'+esc(nm.hint)+'</div>'+
+        '<button class="w95 raised big95" style="margin-top:9px" id="btnGo">▶ Start: '+esc(nm.name)+'</button>'+
+        '<div class="note" style="margin-top:5px">Go there first, then press Start — a '+C.countdownS+' s countdown follows.</div>';
+    } else {
+      h='<div class="lab">All recordings done</div><div class="now">'+C.done+' / '+C.total+'</div>'+
+        '<div class="note">Train the model below. To redo a room, press its cell in the table.</div>';
+    }
+    $('calStep').innerHTML=h;
+    const go=$('btnGo'); if(go)go.addEventListener('click',()=>startRec(nx.label,nx.pass_no));
+    const cx=$('btnCancel'); if(cx)cx.addEventListener('click',()=>wsSend({type:'rooms',action:'cancel'}));
+  }
+  if(A&&A.phase==='countdown')setText($('cdNum'),String(Math.max(1,Math.ceil(A.left))));
+  else if(A){$('recBar').style.width=Math.round(A.progress*100)+'%';
+    setText($('recLeft'),Math.ceil(A.left)+' s left · '+A.frames+' CSI frames');}
+  const busyStart=$('btnGo'); if(busyStart)busyStart.disabled=C.train.state==='running';
+  $('calErr').style.display=C.error?'block':'none'; setText($('calErr'),C.error||'');
+  setText($('calCount'),C.done+' / '+C.total);
+  // table
+  const g=$('calGrid');
+  if(g.children.length!==3+n*3){
+    let s='<span class="h">class</span>';for(let p=1;p<=C.passes;p++)s+='<span class="h">pass '+p+'</span>';
+    C.classes.forEach(c=>{s+='<span class="n">'+esc(c.name)+'</span>';
+      for(let p=1;p<=C.passes;p++)s+='<button class="cell" data-l="'+esc(c.label)+'" data-p="'+p+'"></button>';});
+    g.innerHTML=s;
+    g.querySelectorAll('.cell').forEach(b=>b.addEventListener('click',()=>startRec(b.dataset.l,+b.dataset.p)));
+  }
+  g.querySelectorAll('.cell').forEach(b=>{
+    const r=(C.have[b.dataset.l]||{})[b.dataset.p];
+    const act=A&&A.label===b.dataset.l&&A.pass_no===+b.dataset.p;
+    const nxt=!A&&nx&&nx.label===b.dataset.l&&nx.pass_no===+b.dataset.p;
+    const busy=!!A||C.train.state==='running';
+    b.className='cell'+(act?' act':(r?' ok':(nxt?' next':'')));
+    setText(b,act?(A.phase==='countdown'?'ready':'rec…'):(r?'✓ '+Math.round(r.secs)+'s':(nxt?'next':'—')));
+    b.disabled=busy;
+    b.title=r?'recorded — press to record it again (replaces only this one)':'press to record';
+  });
+  // train
+  const T=C.train, running=T.state==='running';
+  $('btnTrain').disabled=!C.canTrain||!!A||running;
+  setText($('btnTrain'),running?'Training…':'Train room model');
+  let tm='';
+  if(running)tm='<span class="blink">'+esc(T.msg)+'</span>';
+  else if(T.state==='error')tm='<span class="warn">'+esc(T.msg)+'</span>';
+  else if(T.state==='done')tm='Done: '+esc(T.msg);
+  if(!running&&!C.canTrain){const have1=C.classes.filter(c=>C.have[c.label]).length;
+    tm+=(tm?'<br>':'')+'Record every class at least once first ('+have1+' / '+n+').';}
+  else if(!running){
+    const miss2=C.classes.filter(c=>!(C.have[c.label]||{})['2']).length;
+    if(miss2)tm+=(tm?'<br>':'')+'<span class="warn">'+miss2+' classes have no pass 2: their accuracy can only be estimated inside one recording, which flatters it.</span>';
+    if(C.modelStale)tm+=(tm?'<br>':'')+'<span class="warn">Recordings changed since the last training — train again.</span>';
+  }
+  if($('trainMsg').innerHTML!==tm)$('trainMsg').innerHTML=tm;
+  $('btnDiscard').disabled=!!A||running||(C.done===0&&!(R.report));
+}
+$('btnTrain').addEventListener('click',()=>wsSend({type:'rooms',action:'train'}));
+$('btnDiscard').addEventListener('click',()=>{
+  const row=$('discardRow');
+  if(discardArm)return; discardArm=true;
+  const sp=document.createElement('span'); sp.className='note warn'; sp.textContent='Discard every recording and the trained model?';
+  const y=document.createElement('button'); y.className='w95 raised'; y.textContent='Yes, discard';
+  const no=document.createElement('button'); no.className='w95 raised'; no.textContent='Keep';
+  const done=()=>{sp.remove();y.remove();no.remove();discardArm=false;};
+  y.addEventListener('click',()=>{wsSend({type:'rooms',action:'discard'});done();});
+  no.addEventListener('click',done);
+  row.append(sp,y,no);
+});
+
+// ───────── accuracy dialog ─────────
+const SHORT={nobody:'none',bedroom:'Bed',bath2:'B2',bath1:'B1',cem:'Cem',deniz:'Den',ece:'Ece',kitchen:'Kit',entrance:'Ent',bath3:'B3',living:'Liv'};
+let accKey='';
+function renderAcc(R){
+  if(!$('accDlg').classList.contains('on'))return;
+  const rep=R&&R.report;
+  const key=rep?(rep.mode+rep.trainedAt):'none';
+  if(key===accKey)return; accKey=key;
+  if(!rep){$('accBody').innerHTML='<div class="note">No trained model yet — record the rooms and press Train. The accuracy measured on your house will appear here.</div>';return;}
+  const L=rep.labels, N=rep.names, zi=zoneInfo(rep);
+  let h='<div class="kv"><span class="k">Model</span><span class="v">'+esc(MODE_TXT[rep.mode]||rep.mode)+' · card '+esc(rep.node)+' · trained '+esc(new Date(rep.trainedAt*1000).toLocaleString())+'</span></div>'+
+    '<div class="kv"><span class="k">Accuracy (room level)</span><span class="v vac">'+pct(rep.accuracy)+'</span></div>'+
+    '<div class="kv"><span class="k">Balanced accuracy</span><span class="v">'+pct(rep.balancedAccuracy)+'</span></div>'+
+    '<div class="kv"><span class="k">Chance level ('+L.length+' classes)</span><span class="v">'+pct(rep.chance)+'</span></div>'+
+    '<div class="kv"><span class="k">Accuracy after merging zones</span><span class="v">'+(noSeparation(rep)?'— (everything is one zone)':pct(rep.zoneAccuracy))+'</span></div>'+
+    '<div class="kv"><span class="k">Measured on</span><span class="v">'+esc(rep.scheme)+' · '+rep.n+' windows from '+rep.recordings+' recordings</span></div>';
+  if(rep.neuralTrial){const t=rep.neuralTrial;
+    h+='<div class="kv"><span class="k">Neural CSINet trial</span><span class="v">'+(t.error?('failed: '+esc(t.error)+' → k-NN kept'):
+      (pct(t.neuralAcc)+' vs k-NN '+pct(t.knnAcc)+' on held-out recordings → '+(t.kept?'neural kept':'k-NN kept')))+'</span></div>';}
+  // zones
+  const merged=rep.zones.filter(z=>z.members.length>1), low=rep.zones.filter(z=>z.members.length===1&&!z.reliable);
+  h+='<h4>What it can and can\'t tell apart</h4><div class="zl">';
+  if(noSeparation(rep))h+='<div><span class="tag">MERGED</span> Nothing separates: on held-out recordings every room looks like every other room and like nobody moving, so the map can\'t name a room. Record the rooms again walking each one.</div>';
+  else if(!merged.length&&!low.length)h+='Every class separates from every other on held-out recordings.';
+  if(!noSeparation(rep))merged.forEach(z=>{h+='<div><span class="tag">MERGED</span> '+esc(z.members.map(l=>N[L.indexOf(l)]).join(' + '))+' — shown as one zone ('+pct(z.recall)+' zone accuracy)'+
+    (z.members.indexOf('nobody')>=0?'; movement there looks like nobody moving':'')+'</div>';});
+  low.forEach(z=>{h+='<div><span class="tag">LOW</span> '+esc(N[L.indexOf(z.members[0])])+' — '+pct(z.recall)+' accuracy, never shown as a sure answer</div>';});
+  h+='</div>';
+  // per class
+  h+='<h4>Per class</h4><table class="tbl"><tr><th>class</th><th>accuracy</th><th>precision</th><th>windows</th><th>scored</th></tr>';
+  rep.perClass.forEach(c=>{const z=zi[c.label];
+    h+='<tr><td>'+esc(c.name)+(z&&z.members.length>1?' <span class="tag">MERGED</span>':(z&&!z.reliable?' <span class="tag">LOW</span>':''))+'</td><td>'+pct(c.recall)+'</td><td>'+pct(c.precision)+'</td><td>'+c.n+'</td><td>'+
+      (c.scheme==='within-recording'?'<span class="warn">within 1 recording</span>':(c.scheme?'other pass':'held out'))+'</td></tr>';});
+  h+='</table>';
+  // confusion
+  h+='<h4>Confusion · rows: where they really were · columns: what it said · % of row</h4><div class="cmwrap"><table class="cm"><tr><th></th>'+
+    L.map(l=>'<th title="'+esc(N[L.indexOf(l)])+'">'+esc(SHORT[l]||l)+'</th>').join('')+'</tr>';
+  rep.confusion.forEach((row,i)=>{const s=row.reduce((a,b)=>a+b,0)||1;
+    h+='<tr><th class="r">'+esc(N[i])+'</th>'+row.map((v,j)=>{const f=v/s;
+      const bg=i===j?'rgba(57,255,158,'+(0.08+0.8*f).toFixed(2)+')':(f>0?'rgba(255,180,58,'+(0.06+0.85*f).toFixed(2)+')':'transparent');
+      const col=f>0.45?'#000':'#bfead0';
+      return '<td style="background:'+bg+';color:'+col+'" title="'+esc(N[i])+' → '+esc(N[j])+': '+v+' windows">'+(v?Math.round(f*100):'·')+'</td>';}).join('')+'</tr>';});
+  h+='</table></div><div class="note" style="margin-top:8px">Each recording is scored by a model that did not train on it, so these numbers predict tomorrow better than a score on the training data would. They still assume the house is as it was while recording (doors, furniture, who else is moving).</div>';
+  $('accBody').innerHTML=h;
+}
+function openDlg(id){$(id).classList.add('on');accKey='';}
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).classList.remove('on')));
+document.querySelectorAll('.dlg').forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.classList.remove('on');}));
+addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.dlg.on').forEach(d=>d.classList.remove('on'));});
+$('btnAcc').addEventListener('click',()=>openDlg('accDlg'));
+$('mnuAcc').addEventListener('click',()=>openDlg('accDlg'));
+$('mnuHelp').addEventListener('click',()=>openDlg('helpDlg'));
+$('mnuCal').addEventListener('click',()=>$('calWin').scrollIntoView({behavior:'smooth',block:'start'}));
+
+// ───────── main loop ─────────
+function render(){
+  const alive=(performance.now()-lastRx)<1800&&!!latest;
+  const n=alive&&latest.nodes&&latest.nodes[0];
+  const R=latest&&latest.rooms;
+  $('link').className='dot'+(alive&&n&&n.online?' on':'');
+  setText($('status'),!alive?'— waiting for sgpcard.py —':(!n?'no card yet':((n.online?'LIVE':'OFFLINE')+' · card '+n.name+' · '+n.fs+' Hz')));
+  setText($('sMode'),'rooms: '+(R&&R.live?(MODE_TXT[R.live.mode]||R.live.mode):'—'));
+  renderPlan(R,alive);
+  renderClassifier(R,alive);
+  renderHome(n,alive);
+  const isLocal=['127.0.0.1','localhost','[::1]',''].indexOf(location.hostname)>=0;
+  renderCal(R,isLocal);
+  renderAcc(R);
+}
+setInterval(render,100);
+render();
+</script>
+</body></html>

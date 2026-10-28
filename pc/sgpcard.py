@@ -15,12 +15,14 @@ Pipeline (per node):
                ->  breathing band (0.1-0.5 Hz) -> BPM via FFT
                ->  range estimate (CSI disturbance + RSSI, Fresnel-scaled)
   N nodes with known positions -> least-squares trilateration -> real (x,y,z)
+  first card's CSI -> room classifier (learned per-room fingerprints) -> House map
 
 Run:   python3 sgpcard.py            (card at 192.168.4.1, default)
        python3 sgpcard.py --node 192.168.4.1:5566
        python3 sgpcard.py --node A=192.168.4.1 --node B=192.168.1.51   (multi)
+       python3 sgpcard.py --host 0.0.0.0   (open the House map from a phone on your network)
 """
-import argparse, asyncio, http.server, json, math, socket, struct, threading, time, webbrowser
+import argparse, asyncio, http, http.server, ipaddress, json, math, os, socket, struct, threading, time, urllib.parse, webbrowser
 from collections import deque
 import numpy as np
 
@@ -29,8 +31,12 @@ try:
     from ai.engine import AIEngine
 except Exception:
     AIEngine = None
+# room classifier for the House map (numpy k-NN; neural if torch + a trained model)
+from ai.rooms import FrameBuffer, RoomEngine
+from ai.room_calib import RoomCalibration
 
 HDR = 26
+HOST = "127.0.0.1"   # interface the web + websocket servers listen on (--host)
 PORT = 8799          # web + websocket port on the PC
 CARD_PORT = 5566     # UDP port the cards listen on (pings + discovery)
 PING_HZ = 100        # how fast we poke the card to generate CSI (overridden by CONFIG)
@@ -79,6 +85,8 @@ class NodeEngine:
         self.count = 0
         self.aps = {}   # bssid -> {'ssid','ch','rssi':deque,'last':t}
         self.ai = AIEngine() if AIEngine else None
+        self.room_buf = FrameBuffer()     # decimated frames for the room classifier
+        self.card = name                  # which card's link a room model belongs to (add_node: its IP)
         # smoothed outputs
         self.s_motion = 0.0
         self.s_presence = 0.0
@@ -98,11 +106,13 @@ class NodeEngine:
         a = np.sqrt(I * I + Q * Q)
         if first_bad and len(a) > 2:        # first LTF word can be garbage
             a[0] = a[1] = 0
+        now = time.time()
         self.amp.append(a)
-        self.ts.append(time.time())
+        self.ts.append(now)
         self.rssi.append(rssi)
+        self.room_buf.push(now, a, rssi)
         self.mic = mic
-        self.last_rx = time.time()
+        self.last_rx = now
         self.count += 1
 
     # ---- ingest a WiFi scan: list of (bssid, ssid, rssi, ch) ----
@@ -284,7 +294,6 @@ class NodeEngine:
         tu = np.linspace(ts[0], ts[-1], L)
         # pick the subcarrier with most 0.1-0.5 Hz energy
         best, bestP, bestBpm = -1, 0.0, 0.0
-        sig_all = A - np.mean(A, axis=0)
         # limit work: test up to 24 subcarriers
         cols = range(A.shape[1]) if A.shape[1] <= 24 else np.linspace(0, A.shape[1]-1, 24).astype(int)
         freqs = np.fft.rfftfreq(L, d=1.0 / fs)
@@ -435,6 +444,7 @@ def add_node(name=None, ip="192.168.4.1", port=5566, pos=None, mac=None):
             pos = DEFAULT_POS[len(ENGINES) % len(DEFAULT_POS)]
         eng = NodeEngine(name, pos=pos)
         eng.mac = mac
+        eng.card = ip       # same address whether discovered or given with --node
         lk = NodeLink(eng, ip, int(port))
         ENGINES.append(eng); LINKS.append(lk)
         lk.start()
@@ -566,11 +576,31 @@ def apply_client_msg(msg):
             remove_node(msg.get('name'))
     elif t == 'discover':
         DISCOVER['on'] = bool(msg.get('on', True))
+    elif t == 'rooms' and ROOM_CAL is not None:
+        ROOM_CAL.handle(msg)                 # House map: record / cancel / train / discard
     elif t == 'recal':
         for e in msg.get('_engines', []):
             pass  # handled below via a flag
 
 RECAL = {'flag': False}
+
+# House map (web/rooms.html): the room classifier runs on the FIRST card's CSI —
+# it is trained on one card's link, so its recordings and model name that card
+# by address.
+ROOMS = None        # RoomEngine
+ROOM_CAL = None     # RoomCalibration
+HOST_INFO = {}
+
+def room_state(engs):
+    e = engs[0] if engs else None
+    try:
+        ROOM_CAL.update(e)
+        live = ROOMS.infer(e.room_buf, e.card) if e else dict(state='no-card', mode=ROOMS.mode)
+        rep = ROOMS.report and {k: v for k, v in ROOMS.report.items() if k != 'separation'}
+        return dict(live=live, cal=ROOM_CAL.status(), report=rep, host=HOST_INFO)
+    except Exception as ex:                  # never take the DSP loop down with it
+        return dict(live=dict(state='error', mode=ROOMS.mode, error=repr(ex)),
+                    cal=None, report=None, host=HOST_INFO)
 
 async def ws_recv(ws):
     try:
@@ -608,24 +638,89 @@ def serve_http(webdir):
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
             self.send_header("Pragma", "no-cache")
             super().end_headers()
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), H)
+    httpd = http.server.ThreadingHTTPServer((HOST, PORT), H)
     httpd.serve_forever()
 
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+WILDCARD = ("0.0.0.0", "::", "")
+
+def url_host(h):
+    return "[%s]" % h if ":" in h else h
+
+def page_hosts(bind):
+    """(address this computer opens the pages on, address other devices on the
+    network use — None when the UI is served to this computer only)."""
+    if bind in WILDCARD:
+        return "127.0.0.1", my_lan_ip()
+    if bind in LOOPBACK:
+        return bind, None
+    return bind, bind
+
+def _same_computer_name(h):
+    try:
+        ipaddress.ip_address(h)
+        return True
+    except ValueError:
+        pass
+    return h == "localhost" or h.endswith(".local") or h == socket.gethostname().lower()
+
+def ws_origin_ok(origin, host_header, bind, port):
+    """Is this handshake from a page this server served? The websocket accepts
+    commands that delete recordings, so a page from anywhere else must not
+    connect. A page reaches the socket on the same name it was loaded from, so
+    its Origin must be http://<Host's name>:<port>, and that name must be an
+    address or a name of this computer — never a name some other site controls."""
+    if origin is None:
+        return True
+    own = set(LOOPBACK) if bind in WILDCARD or bind in LOOPBACK else set()
+    if bind not in WILDCARD:
+        own.add(bind)
+    if origin in {"http://%s:%d" % (url_host(h), port) for h in own}:
+        return True
+    try:
+        o = urllib.parse.urlsplit(origin)
+        h = urllib.parse.urlsplit("//" + (host_header or "")).hostname
+        if o.scheme != "http" or o.port != port or not o.hostname or o.hostname != h:
+            return False
+    except ValueError:
+        return False
+    return _same_computer_name(h)
+
+def ws_server():
+    from websockets.asyncio.server import serve
+
+    def check_origin(conn, request):
+        if not ws_origin_ok(request.headers.get("Origin"), request.headers.get("Host"), HOST, PORT):
+            return conn.respond(http.HTTPStatus.FORBIDDEN, "page not served by this computer\n")
+    return serve(ws_handler, HOST, PORT + 1, ping_interval=None, process_request=check_origin)
+
 async def ws_main():
-    import websockets
-    async with websockets.serve(ws_handler, "127.0.0.1", PORT + 1, ping_interval=None):
+    async with ws_server():
         await asyncio.Future()
 
 
 # ──────────────────────────────────────────────────────────────────────────
 def main():
+    global HOST, ROOMS, ROOM_CAL
     ap = argparse.ArgumentParser()
     ap.add_argument("--node", action="append", default=[],
                     help="card address, e.g. 192.168.4.1 or NAME=IP[:port]. Repeat for multi-node.")
     ap.add_argument("--no-discover", action="store_true",
                     help="disable auto-detection of cards on the network")
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--host", default=HOST,
+                    help="interface to serve the UI on; 0.0.0.0 lets a phone on your network "
+                         "open the House map (default 127.0.0.1: this computer only)")
+    ap.add_argument("--room-data", default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                        "ai", "data", "rooms"),
+                    help="where room recordings and the trained room model are kept")
     args = ap.parse_args()
+
+    HOST = args.host
+    local, lan = page_hosts(HOST)
+    HOST_INFO.update(bind=HOST, local=local, lan=lan)
+    ROOMS = RoomEngine(args.room_data)
+    ROOM_CAL = RoomCalibration(args.room_data, ROOMS)
 
     DISCOVER['on'] = not args.no_discover
     # Explicit --node always wins. Otherwise, if auto-detect is on we start with
@@ -641,7 +736,6 @@ def main():
 
     stop = threading.Event()
 
-    import os
     webdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
     threading.Thread(target=serve_http, args=(webdir,), daemon=True).start()
     if DISCOVER['on']:
@@ -699,17 +793,22 @@ def main():
                               float(e.pos[1] + r * math.sin(bearing)), 1.0]
             STATE["nodes"] = out
             STATE["person"] = person
+            STATE["rooms"] = room_state(engs)
             STATE["discover"] = {"on": DISCOVER['on'], "found": DISCOVER['found'],
                                  "subnet": DISCOVER['subnet']}
             STATE["t"] = time.time()
             time.sleep(0.05)
     threading.Thread(target=dsp_loop, daemon=True).start()
 
-    url = f"http://127.0.0.1:{PORT}/index.html"
+    url = f"http://{url_host(local)}:{PORT}/index.html"
     print("=" * 60)
     print("  SGP SGPCard Command")
     print("  nodes:", ", ".join(f"{e.name}@{lk.addr[0]}" for e, lk in zip(ENGINES, LINKS)))
     print("  open:", url)
+    print("  house map:", f"http://{url_host(local)}:{PORT}/rooms.html",
+          f"· room model: {ROOMS.mode}" + (f" ({ROOMS.error})" if ROOMS.error else ""))
+    if lan and lan != local:
+        print("  phone:", f"http://{url_host(lan)}:{PORT}/rooms.html")
     print("=" * 60)
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
