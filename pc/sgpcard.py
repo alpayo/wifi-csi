@@ -690,7 +690,10 @@ def ws_server():
     from websockets.asyncio.server import serve
 
     def check_origin(conn, request):
-        if not ws_origin_ok(request.headers.get("Origin"), request.headers.get("Host"), HOST, PORT):
+        # two Host or Origin headers: can't prove which page this is
+        hosts, origins = request.headers.get_all("Host"), request.headers.get_all("Origin")
+        if len(hosts) != 1 or len(origins) > 1 or \
+                not ws_origin_ok(origins[0] if origins else None, hosts[0], HOST, PORT):
             return conn.respond(http.HTTPStatus.FORBIDDEN, "page not served by this computer\n")
     return serve(ws_handler, HOST, PORT + 1, ping_interval=None, process_request=check_origin)
 

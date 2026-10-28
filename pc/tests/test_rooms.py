@@ -517,16 +517,19 @@ class WebsocketOriginTests(unittest.TestCase):
         return asyncio.run(go())
 
     def _handshake(self, host, origin):
-        """HTTP status of a websocket handshake carrying these Host / Origin headers."""
+        """HTTP status of a websocket handshake carrying these Host / Origin headers
+        (a tuple sends one header per value)."""
+        hosts = (host,) if isinstance(host, str) else host
+        origins = (origin,) if isinstance(origin, str) else origin or ()
         sg = self.sg
 
         async def go():
             async with sg.ws_server():
                 r, w = await asyncio.open_connection("127.0.0.1", sg.PORT + 1)
-                w.write(("GET / HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\n"
+                w.write(("GET / HTTP/1.1\r\n%sUpgrade: websocket\r\n"
                          "Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
                          "Sec-WebSocket-Version: 13\r\n%s\r\n"
-                         % (host, "Origin: %s\r\n" % origin if origin else "")).encode())
+                         % ("".join("Host: %s\r\n" % h for h in hosts), "".join("Origin: %s\r\n" % o for o in origins))).encode())
                 await w.drain()
                 status = int((await r.readline()).split()[1])
                 w.close()
@@ -550,6 +553,16 @@ class WebsocketOriginTests(unittest.TestCase):
                              ("10.0.0.7", "https://10.0.0.7:%d" % p)):
             with self.subTest(host=host, origin=origin):
                 self.assertEqual(self._handshake("%s:%d" % (host, p + 1), origin), 403)
+
+    def test_a_handshake_with_two_host_or_origin_headers_is_refused(self):
+        p = self.sg.PORT
+        host, page = "127.0.0.1:%d" % (p + 1), "http://127.0.0.1:%d" % p
+        for hosts, origins in (((host, "evil.example:%d" % (p + 1)), page),
+                               ((host,) * 2, page),
+                               (host, (page, "http://evil.example")),
+                               (host, (page,) * 2)):
+            with self.subTest(hosts=hosts, origins=origins):
+                self.assertEqual(self._handshake(hosts, origins), 403)
 
     def test_a_page_from_another_site_cannot_wipe_the_recordings(self):
         self.assertFalse(self._discard_from("http://evil.example"))
